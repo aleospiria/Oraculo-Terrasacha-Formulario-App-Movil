@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.8.1
+  sdk: ^3.10.4
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -35,6 +35,10 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  amplify_flutter: ^2.8.0
+  amplify_datastore: ^2.8.0
+  amplify_api: ^2.8.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -44,13 +48,23 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
 flutter:
+  fonts:
+    - family: Typographica
+      fonts:
+        - asset: "assets/Fonts/TypoGraphica.otf"
+    - family: ChampagneLimousinesBold
+      fonts:
+        - asset: "assets/Fonts/Champagne & Limousines.ttf"
+    - family: FuturaBold
+      fonts:
+        - asset: "assets/Fonts/Futura Bold.otf"
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
