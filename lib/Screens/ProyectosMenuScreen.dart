@@ -41,6 +41,17 @@ class ProyectosMenuScreen extends StatelessWidget {
               },
             ),
           ),
+          // Botón para ver registros guardados
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.list_alt),
+              label: const Text('Ver Registros Guardados'),
+              onPressed: () {
+                Navigator.pushNamed(context, '/registros');
+              },
+            ),
+          ),
           const SizedBox(height: 16),
           const Divider(),
           const Padding(
