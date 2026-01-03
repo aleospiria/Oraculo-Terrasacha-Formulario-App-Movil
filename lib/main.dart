@@ -5,6 +5,7 @@ import 'Screens/ParcelasMenuScreen.dart';
 import 'Screens/ProyectosMenuScreen.dart';
 import 'Screens/SincronizacionScreen.dart';
 import 'Screens/RevisionScreen.dart';
+import 'Screens/RegistrosGuardadosScreen.dart';
 import 'theme.dart';
 
 void main() {
@@ -27,6 +28,7 @@ class CapturadorApp extends StatelessWidget {
         '/captura': (context) => const CapturaDatosScreen(),
         '/sincronizacion': (context) => const SincronizacionScreen(),
         '/revision': (context) => const RevisionScreen(),
+        '/registros': (context) => const RegistrosGuardadosScreen(),
       },
     );
   }
