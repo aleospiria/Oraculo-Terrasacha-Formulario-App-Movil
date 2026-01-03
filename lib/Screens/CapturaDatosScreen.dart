@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/LocalDataBase.dart';
 
 class CapturaDatosScreen extends StatefulWidget {
   const CapturaDatosScreen({super.key});
@@ -11,16 +12,18 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
   final _formKey = GlobalKey<FormState>();
 
   String? _especie;
-  final _numArbolesController = TextEditingController();
+  final _numArbolController = TextEditingController();
   final _diametroController = TextEditingController();
   final _alturaController = TextEditingController();
   final _observacionesController = TextEditingController();
 
   String? _coordenadas;
 
+  int? _registroId;
+
   @override
   void dispose() {
-    _numArbolesController.dispose();
+    _numArbolController.dispose();
     _diametroController.dispose();
     _alturaController.dispose();
     _observacionesController.dispose();
@@ -33,26 +36,59 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
       _coordenadas = "Lat: 4.12345, Lon: -74.12345"; // Ejemplo fijo
     });
   }
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      if (args != null) {
+        _registroId = args['id'] as int?;
+        setState(() {
+          _especie = args['especie'] as String?;
+          _numArbolController.text = (args['numArbol'] ?? '').toString();
+          _diametroController.text = (args['diametro'] ?? '').toString();
+          _alturaController.text = (args['altura'] ?? '').toString();
+          _observacionesController.text = args['observaciones'] ?? '';
+          _coordenadas = args['coordenadas'] ?? '';
+        });
+      }
+    });
+  }
 
-  void _guardarBorrador() {
+  Future<void> _guardarBorrador() async {
     if (_formKey.currentState!.validate()) {
-      // Guardar localmente
+      final registro = {
+        'especie': _especie,
+        'numArbol': int.tryParse(_numArbolController.text) ?? 0,
+        'diametro': double.tryParse(_diametroController.text) ?? 0.0,
+        'altura': double.tryParse(_alturaController.text) ?? 0.0,
+        'observaciones': _observacionesController.text,
+        'coordenadas': _coordenadas ?? '',
+        'estado': 'pendiente',
+      };
+
+      if (_registroId != null) {
+        await LocalDatabase.instance.updateRegistro(_registroId!, registro);
+      } else {
+        await LocalDatabase.instance.insertRegistro(registro);
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Borrador guardado')),
+        const SnackBar(content: Text('Borrador guardado localmente')),
       );
     }
   }
 
   void _irARevision() {
     if (_formKey.currentState!.validate()) {
-      // Navegar a pantalla de revisión con datos
       Navigator.pushNamed(context, '/revision', arguments: {
+        'id': _registroId,
         'especie': _especie,
-        'numArboles': _numArbolesController.text,
+        'numArbol': _numArbolController.text,
         'diametro': _diametroController.text,
         'altura': _alturaController.text,
         'observaciones': _observacionesController.text,
         'coordenadas': _coordenadas,
+        'estado': 'pendiente',
       });
     }
   }
@@ -96,16 +132,16 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Número de árboles
+              // Número de árbol
               TextFormField(
-                controller: _numArbolesController,
+                controller: _numArbolController,
                 decoration: const InputDecoration(
-                  labelText: 'Número de árboles',
+                  labelText: 'Número de árbol',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
                 validator: (val) {
-                  if (val == null || val.isEmpty) return 'Ingrese número de árboles';
+                  if (val == null || val.isEmpty) return 'Ingrese número de árbol';
                   if (int.tryParse(val) == null) return 'Ingrese un número válido';
                   return null;
                 },
