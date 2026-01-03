@@ -139,3 +139,6 @@ El diagrama se divide en dos flujos:
 </div>
 
 >Screen de captura de datos actualmente
+
+
+> Se añadio un instalador para Android (Se esta trabajando en el de Iphone por motivos de licencia de Apple)
