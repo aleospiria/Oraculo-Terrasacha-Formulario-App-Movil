@@ -38,9 +38,11 @@ dependencies:
   sqflite: ^2.2.8+4
   path: ^1.8.3
 
-  amplify_flutter: ^2.8.0
-  amplify_datastore: ^2.8.0
-  amplify_api: ^2.8.0
+  #amplify_flutter: ^2.8.0
+  #amplify_datastore: ^2.8.0
+  #amplify_api: ^2.8.0
+
+  graphql_flutter: ^5.1.2
 
 dev_dependencies:
   flutter_test:
