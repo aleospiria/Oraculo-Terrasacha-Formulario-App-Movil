@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../data/LocalDataBase.dart';
+import '../data/LocalDatabase.dart';
 
 class RegistrosGuardadosScreen extends StatefulWidget {
   const RegistrosGuardadosScreen({super.key});
@@ -18,7 +18,7 @@ class _RegistrosGuardadosScreenState extends State<RegistrosGuardadosScreen> {
   }
 
   void _loadRegistros() {
-    _registrosFuture = LocalDatabase.instance.getRegistros();
+    _registrosFuture = LocalDatabase.instance.getRegistrosConContexto();
   }
 
   @override
@@ -43,8 +43,13 @@ class _RegistrosGuardadosScreenState extends State<RegistrosGuardadosScreen> {
             itemBuilder: (context, index) {
               final reg = registros[index];
               return ListTile(
-                title: Text('Especie: ${reg['especie']}'),
-                subtitle: Text('Árbol: ${reg['numArbol']}, Estado: ${reg['estado']}'),
+                title: Text('${reg['parcela_nombre']} - Árbol ${reg['numArbol']}'),
+                subtitle: Text(
+                  '${reg['especie'] ?? 'Sin especie'}\n'
+                      'Estado: ${reg['estado']}\n'
+                      '${reg['proyecto_nombre']} > ${reg['predio_nombre']}',
+                  style: const TextStyle(fontSize: 12),
+                ),
                 onTap: () {
                   Navigator.pushNamed(context, '/revision', arguments: reg)
                       .then((_) => setState(() => _loadRegistros()));

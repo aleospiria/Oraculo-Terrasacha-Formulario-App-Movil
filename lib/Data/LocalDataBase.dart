@@ -3,14 +3,20 @@ import 'package:path/path.dart';
 
 class LocalDatabase {
   static final LocalDatabase instance = LocalDatabase._init();
-
   static Database? _database;
 
   LocalDatabase._init();
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
-
+    if (_database != null) {
+      if (_database!.isOpen) {
+        return _database!;
+      } else {
+        // Si está cerrada, la reabrimos
+        _database = await _initDB('capturador.db');
+        return _database!;
+      }
+    }
     _database = await _initDB('capturador.db');
     return _database!;
   }
@@ -18,11 +24,19 @@ class LocalDatabase {
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
-
-    return await openDatabase(path, version: 2, onCreate: _createDB, onUpgrade: _onUpgrade);
+    return await openDatabase(
+      path,
+      version: 3, // Incrementa la versión para aplicar cambios
+      onCreate: _createDB,
+      onUpgrade: _onUpgrade,
+    );
   }
 
   Future _createDB(Database db, int version) async {
+    await _createTables(db);
+  }
+
+  Future _createTables(Database db) async {
     // Tabla 1: Proyectos
     await db.execute('''
       CREATE TABLE proyectos (
@@ -45,13 +59,13 @@ class LocalDatabase {
       )
     ''');
 
-    // Tabla 3: Parcelas
+    // Tabla 3: Parcelas (corregida para permitir especie nula temporalmente)
     await db.execute('''
       CREATE TABLE parcelas (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         parcela_id TEXT NOT NULL UNIQUE,
         nombre TEXT NOT NULL,
-        especie TEXT NOT NULL,
+        especie TEXT,
         poligono_geojson TEXT,
         predio_id TEXT NOT NULL,
         predio_local_id INTEGER NOT NULL,
@@ -59,7 +73,7 @@ class LocalDatabase {
       )
     ''');
 
-    // Tabla 4: Registros (actualizada con relación a Parcelas)
+    // Tabla 4: Registros
     await db.execute('''
       CREATE TABLE registros (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,35 +93,24 @@ class LocalDatabase {
     ''');
   }
 
-  // Manejo de actualizaciones de versión de base de datos
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
-      // Si actualizas desde version 1 a 2, crea las nuevas tablas
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS proyectos (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          proyecto_id TEXT NOT NULL UNIQUE,
-          nombre TEXT NOT NULL
-        )
-      ''');
+      // Crear tablas iniciales si no existen
+      await _createTables(db);
+    }
 
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS predios (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          predio_id TEXT NOT NULL UNIQUE,
-          nombre TEXT NOT NULL,
-          poligono_geojson TEXT,
-          proyecto_id TEXT NOT NULL,
-          proyecto_local_id INTEGER NOT NULL,
-          FOREIGN KEY (proyecto_local_id) REFERENCES proyectos(id) ON DELETE CASCADE
-        )
-      ''');
+    if (oldVersion < 3) {
+      // Versión 3: Asegurar que parcelas tenga especie como TEXT (sin NOT NULL)
+      // Primero respaldamos datos
+      await db.execute('ALTER TABLE parcelas RENAME TO parcelas_old');
 
+      // Creamos nueva tabla con estructura correcta
       await db.execute('''
-        CREATE TABLE IF NOT EXISTS parcelas (
+        CREATE TABLE parcelas (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           parcela_id TEXT NOT NULL UNIQUE,
           nombre TEXT NOT NULL,
+          especie TEXT,
           poligono_geojson TEXT,
           predio_id TEXT NOT NULL,
           predio_local_id INTEGER NOT NULL,
@@ -115,14 +118,19 @@ class LocalDatabase {
         )
       ''');
 
-      // Actualizar tabla registros para añadir campos nuevos
-      // Nota: SQLite no permite ALTER TABLE para añadir FOREIGN KEY,
-      // así que si ya tienes datos, necesitarías migración manual
+      // Copiamos datos antiguos
+      await db.execute('''
+        INSERT INTO parcelas (id, parcela_id, nombre, especie, poligono_geojson, predio_id, predio_local_id)
+        SELECT id, parcela_id, nombre, COALESCE(especie, ''), poligono_geojson, predio_id, predio_local_id
+        FROM parcelas_old
+      ''');
+
+      // Eliminamos tabla vieja
+      await db.execute('DROP TABLE parcelas_old');
     }
   }
 
   // ========== MÉTODOS PARA PROYECTOS ==========
-
   Future<int> insertProyecto(Map<String, dynamic> proyecto) async {
     final db = await instance.database;
     return await db.insert('proyectos', proyecto);
@@ -135,16 +143,11 @@ class LocalDatabase {
 
   Future<Map<String, dynamic>?> getProyectoById(int id) async {
     final db = await instance.database;
-    final result = await db.query(
-      'proyectos',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    final result = await db.query('proyectos', where: 'id = ?', whereArgs: [id]);
     return result.isNotEmpty ? result.first : null;
   }
 
   // ========== MÉTODOS PARA PREDIOS ==========
-
   Future<int> insertPredio(Map<String, dynamic> predio) async {
     final db = await instance.database;
     return await db.insert('predios', predio);
@@ -152,11 +155,7 @@ class LocalDatabase {
 
   Future<List<Map<String, dynamic>>> getPrediosByProyecto(int proyectoLocalId) async {
     final db = await instance.database;
-    return await db.query(
-      'predios',
-      where: 'proyecto_local_id = ?',
-      whereArgs: [proyectoLocalId],
-    );
+    return await db.query('predios', where: 'proyecto_local_id = ?', whereArgs: [proyectoLocalId]);
   }
 
   Future<List<Map<String, dynamic>>> getAllPredios() async {
@@ -165,7 +164,6 @@ class LocalDatabase {
   }
 
   // ========== MÉTODOS PARA PARCELAS ==========
-
   Future<int> insertParcela(Map<String, dynamic> parcela) async {
     final db = await instance.database;
     return await db.insert('parcelas', parcela);
@@ -173,11 +171,7 @@ class LocalDatabase {
 
   Future<List<Map<String, dynamic>>> getParcelasByPredio(int predioLocalId) async {
     final db = await instance.database;
-    return await db.query(
-      'parcelas',
-      where: 'predio_local_id = ?',
-      whereArgs: [predioLocalId],
-    );
+    return await db.query('parcelas', where: 'predio_local_id = ?', whereArgs: [predioLocalId]);
   }
 
   Future<List<Map<String, dynamic>>> getAllParcelas() async {
@@ -187,16 +181,11 @@ class LocalDatabase {
 
   Future<Map<String, dynamic>?> getParcelaById(int id) async {
     final db = await instance.database;
-    final result = await db.query(
-      'parcelas',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    final result = await db.query('parcelas', where: 'id = ?', whereArgs: [id]);
     return result.isNotEmpty ? result.first : null;
   }
 
   // ========== MÉTODOS PARA REGISTROS ==========
-
   Future<int> insertRegistro(Map<String, dynamic> registro) async {
     final db = await instance.database;
     return await db.insert('registros', registro);
@@ -209,50 +198,32 @@ class LocalDatabase {
 
   Future<List<Map<String, dynamic>>> getRegistrosByParcela(int parcelaLocalId) async {
     final db = await instance.database;
-    return await db.query(
-      'registros',
-      where: 'parcela_local_id = ?',
-      whereArgs: [parcelaLocalId],
-    );
+    return await db.query('registros', where: 'parcela_local_id = ?', whereArgs: [parcelaLocalId]);
   }
 
   Future<List<Map<String, dynamic>>> getRegistrosPendientes() async {
     final db = await instance.database;
-    return await db.query(
-      'registros',
-      where: 'estado = ?',
-      whereArgs: ['pendiente'],
-    );
+    return await db.query('registros', where: 'estado = ?', whereArgs: ['pendiente']);
   }
 
   Future<int> updateRegistro(int id, Map<String, dynamic> registro) async {
     final db = await instance.database;
-    return await db.update(
-      'registros',
-      registro,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.update('registros', registro, where: 'id = ?', whereArgs: [id]);
   }
 
   Future<int> deleteRegistro(int id) async {
     final db = await instance.database;
-    return await db.delete(
-      'registros',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    return await db.delete('registros', where: 'id = ?', whereArgs: [id]);
   }
 
   // ========== MÉTODOS ÚTILES ==========
-
-  // Obtener registros con información completa (JOIN)
   Future<List<Map<String, dynamic>>> getRegistrosConContexto() async {
     final db = await instance.database;
     return await db.rawQuery('''
       SELECT 
         r.*,
         pa.nombre as parcela_nombre,
+        pa.especie as especie,
         pr.nombre as predio_nombre,
         py.nombre as proyecto_nombre
       FROM registros r
@@ -266,5 +237,12 @@ class LocalDatabase {
   Future close() async {
     final db = await instance.database;
     db.close();
+  }
+
+  Future<void> resetDatabase() async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, 'capturador.db');
+    await deleteDatabase(path);
+    _database = null; // Forzar re-inicialización
   }
 }
