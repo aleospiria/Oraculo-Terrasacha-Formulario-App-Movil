@@ -1,13 +1,97 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+import '../data/LocalDatabase.dart';
 
-class ProyectosMenuScreen extends StatelessWidget {
+class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // Por ahora usamos una lista dummy de proyectos
-    final proyectos = <String>['Proyecto A', 'Proyecto B'];
+  State<ProyectosMenuScreen> createState() => _ProyectosMenuScreenState();
+}
 
+class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
+  List<Map<String, dynamic>> proyectos = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarProyectos();
+  }
+
+
+  Future<void> _cargarProyectos() async {
+    try {
+      final lista = await LocalDatabase.instance.getProyectos();
+      setState(() {
+        proyectos = lista;
+      });
+    } catch (e) {
+      debugPrint('Error al cargar proyectos: $e');
+    }
+  }
+
+  Future<void> _crearProyecto(String nombre) async {
+    try {
+      await LocalDatabase.instance.insertProyecto({
+        'proyecto_id': 'local-${DateTime.now().millisecondsSinceEpoch}',
+        'nombre': nombre,
+      });
+      // Recargamos la lista después de insertar
+      await _cargarProyectos();
+    } catch (e) {
+      debugPrint('Error creando proyecto: $e');
+    }
+  }
+
+  // Recibe el BuildContext explícitamente para evitar el error de tipos
+  Future<void> _nuevoProyecto(BuildContext context) async {
+    final controller = TextEditingController();
+
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Nuevo proyecto'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Nombre del proyecto'),
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancelar'),
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+            ElevatedButton(
+              child: const Text('Guardar'),
+              onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (nombre != null && nombre.isNotEmpty) {
+      await _crearProyecto(nombre);
+    }
+  }
+
+  Future<void> _borrarBaseDeDatos() async {
+    try {
+      final dbPath = await getDatabasesPath();
+      final path = join(dbPath, 'capturador.db');
+      await deleteDatabase(path);
+      debugPrint('Base de datos borrada');
+      setState(() {
+        proyectos = [];
+      });
+    } catch (e) {
+      debugPrint('Error borrando base de datos: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Menú Proyectos'),
@@ -18,38 +102,46 @@ class ProyectosMenuScreen extends StatelessWidget {
               Navigator.pushNamed(context, '/sincronizacion');
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.delete_forever),
+            tooltip: 'Borrar base de datos',
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (BuildContext dialogContext) {
+                  return AlertDialog(
+                    title: const Text('Confirmar borrado'),
+                    content: const Text('¿Seguro que quieres borrar toda la base de datos?'),
+                    actions: [
+                      TextButton(
+                        child: const Text('Cancelar'),
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                      ),
+                      ElevatedButton(
+                        child: const Text('Borrar'),
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                      ),
+                    ],
+                  );
+                },
+              );
+              if (confirm == true) {
+                await _borrarBaseDeDatos();
+              }
+            },
+          ),
         ],
       ),
       body: Column(
         children: [
           const SizedBox(height: 16),
-          // Botón para "Nuevo proyecto"
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: ElevatedButton.icon(
               icon: const Icon(Icons.add),
               label: const Text('Nuevo proyecto'),
-              onPressed: () async {
-                final nombre = await _mostrarDialogoNuevoProyecto(context);
-                if (nombre != null && nombre.trim().isNotEmpty) {
-                  // Aquí luego guardaremos en almacenamiento local
-                  // y recargaremos la lista
-                  // Por ahora solo mostramos en consola
-                  // ignore: avoid_print
-                  print('Crear nombre/id del proyecto: $nombre');
-                }
-              },
-            ),
-          ),
-          // Botón para ver registros guardados
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.list_alt),
-              label: const Text('Ver Registros Guardados'),
-              onPressed: () {
-                Navigator.pushNamed(context, '/registros');
-              },
+              // Aquí pasamos el context del build explícitamente
+              onPressed: () => _nuevoProyecto(context),
             ),
           ),
           const SizedBox(height: 16),
@@ -62,18 +154,22 @@ class ProyectosMenuScreen extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: ListView.builder(
+            child: proyectos.isEmpty
+                ? const Center(child: Text('No hay proyectos'))
+                : ListView.builder(
               itemCount: proyectos.length,
-              itemBuilder: (context, index) {
+              itemBuilder: (BuildContext itemContext, int index) {
                 final proyecto = proyectos[index];
                 return ListTile(
-                  title: Text(proyecto),
+                  title: Text(proyecto['nombre'] ?? 'Sin nombre'),
                   onTap: () {
-                    // Navegar al Menú Parcelas con el proyecto seleccionado
                     Navigator.pushNamed(
-                      context,
-                      '/parcelas',
-                      arguments: proyecto,
+                      itemContext,
+                      '/predios',
+                      arguments: {
+                        'proyecto_local_id': proyecto['id'],
+                        'proyecto_nombre': proyecto['nombre'],
+                      },
                     );
                   },
                 );
@@ -82,37 +178,6 @@ class ProyectosMenuScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Future<String?> _mostrarDialogoNuevoProyecto(BuildContext context) async {
-    final controller = TextEditingController();
-
-    return showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Nuevo proyecto'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(
-              labelText: 'Nombre/ID del proyecto',
-            ),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancelar'),
-              onPressed: () => Navigator.pop(context),
-            ),
-            ElevatedButton(
-              child: const Text('Guardar'),
-              onPressed: () {
-                Navigator.pop(context, controller.text.trim());
-              },
-            ),
-          ],
-        );
-      },
     );
   }
 }

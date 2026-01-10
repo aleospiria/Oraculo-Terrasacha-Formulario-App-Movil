@@ -32,7 +32,7 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
     });
   }
 
-  Future<void> _nuevaParcela() async {
+  Future<void> _nuevaParcela(BuildContext context) async {
     final resultado = await _mostrarDialogoNuevaParcelaConEspecie(context);
     if (resultado != null && resultado['nombre']!.trim().isNotEmpty && resultado['especie'] != null && _predioLocalId != null) {
       await LocalDatabase.instance.insertParcela({
@@ -78,7 +78,7 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
                       DropdownMenuItem(value: 'Pino Caribe', child: Text('Pino Caribe')),
                       DropdownMenuItem(value: 'Forestal Ornamental', child: Text('Forestal Ornamental')),
                     ],
-                    value: especieSeleccionada,
+                    initialValue: especieSeleccionada,
                     onChanged: (val) => setState(() => especieSeleccionada = val),
                     validator: (val) => val == null ? 'Seleccione una especie' : null,
                   ),
@@ -124,7 +124,7 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
             child: ElevatedButton.icon(
               icon: const Icon(Icons.add_location_alt),
               label: const Text('Nueva parcela'),
-              onPressed: _nuevaParcela,
+              onPressed: () => _nuevaParcela(context),
             ),
           ),
           Padding(
