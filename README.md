@@ -150,9 +150,9 @@ El diagrama se divide en dos flujos:
 - Implementación completa de base de datos local para guardado de registros offline, con creacion de nuevas Pantallas para Logica y navegacion:
    - **CapturaDatosScreen**: formulario para crear y editar registros con validación y guardado local en estado 'pendiente'.
 
-<div align="center" style="margin: 20px 0;">
-  <img src="https://github.com/user-attachments/assets/3e3455b4-2eae-4560-97b0-2dec14804f9c" alt="CapturaDatosNuevo" width="300" style="margin: 10px 20px;" />
-  <img src="https://github.com/user-attachments/assets/81febc98-cf8d-4a4b-af7f-f141fa72efd3" alt="CapturaDatosNuevo" width="300" style="margin: 10px 20px;" /> 
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/3e3455b4-2eae-4560-97b0-2dec14804f9c" alt="CapturaDatosNuevo" width="300" />
+  <img src="https://github.com/user-attachments/assets/81febc98-cf8d-4a4b-af7f-f141fa72efd3" alt="CapturaDatosNuevo" width="300" />
 </div>
 
 
