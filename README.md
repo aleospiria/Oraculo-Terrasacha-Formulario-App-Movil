@@ -150,9 +150,9 @@ El diagrama se divide en dos flujos:
 - Implementación completa de base de datos local para guardado de registros offline, con creacion de nuevas Pantallas para Logica y navegacion:
    - **CapturaDatosScreen**: formulario para crear y editar registros con validación y guardado local en estado 'pendiente'.
 
-<div align="center" style="margin: 20px 0;">
-  <img src="https://github.com/user-attachments/assets/3e3455b4-2eae-4560-97b0-2dec14804f9c" alt="CapturaDatosNuevo" width="300" style="margin: 10px 20px;" />
-  <img src="https://github.com/user-attachments/assets/81febc98-cf8d-4a4b-af7f-f141fa72efd3" alt="CapturaDatosNuevo" width="300" style="margin: 10px 20px;" /> 
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/3e3455b4-2eae-4560-97b0-2dec14804f9c" alt="1" width="300" />
+  <img src="https://github.com/user-attachments/assets/81febc98-cf8d-4a4b-af7f-f141fa72efd3" alt="2" width="300" />
 </div>
 
 
@@ -160,21 +160,21 @@ El diagrama se divide en dos flujos:
 - **RevisionScreen**: pantalla de revisión en modo solo lectura con opción a editar registros en estado 'pendiente'.
 
 <div align="center" style="margin: 20px 0;">
-  <img src="https://github.com/user-attachments/assets/27f26f35-e787-4c5a-9314-82cb67407120" alt="CapturaDatosNuevo" width="300" />
+  <img src="https://github.com/user-attachments/assets/27f26f35-e787-4c5a-9314-82cb67407120" alt="3" width="300" />
 </div>
 
 
 - **RegistrosGuardadosScreen**: listado de registros guardados localmente, con navegación a revisión y actualización automática al volver.
 
 <div align="center" style="margin: 20px 0;">
-  <img src="https://github.com/user-attachments/assets/d7a4692b-3aa2-4595-acdb-3bfc20b2f259" alt="CapturaDatosNuevo" width="300" />
+  <img src="https://github.com/user-attachments/assets/d7a4692b-3aa2-4595-acdb-3bfc20b2f259" alt="4" width="300" />
 </div>
 
 
 - Desarrollo de persistencia local usando SQLite a través de la clase `LocalDatabase`, con métodos para insertar, consultar y **editar** registros.
 
 <div align="center" style="margin: 20px 0;">
-  <img src="https://github.com/user-attachments/assets/2dac9255-26d5-4ee9-aa12-609cde5304a5" alt="CapturaDatosNuevo" width="300" />
+  <img src="https://github.com/user-attachments/assets/2dac9255-26d5-4ee9-aa12-609cde5304a5" alt="5" width="300" />
 </div>
 
 
