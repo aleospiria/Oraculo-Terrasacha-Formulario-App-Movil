@@ -12,7 +12,6 @@ class LocalDatabase {
       if (_database!.isOpen) {
         return _database!;
       } else {
-        // Si está cerrada, la reabrimos
         _database = await _initDB('capturador.db');
         return _database!;
       }
@@ -26,7 +25,7 @@ class LocalDatabase {
     final path = join(dbPath, filePath);
     return await openDatabase(
       path,
-      version: 3, // Incrementa la versión para aplicar cambios
+      version: 3,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
