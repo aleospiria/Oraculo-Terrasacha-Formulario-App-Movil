@@ -14,6 +14,8 @@ import 'theme.dart';
 const String graphQLEndpoint = 'https://TU-ENDPOINT.appsync-api.TU-REGION.amazonaws.com/graphql';
 const String apiKey = 'TU_API_KEY';
 
+
+//Putamadremetocaborrarlabasededatoslocal
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
