@@ -147,7 +147,7 @@ El diagrama se divide en dos flujos:
 
 ##  Avances del Proyecto (v0.2.0 - 03/01/2026)
 
-- Implementación completa de base de datos local para guardado de registros offline, con creacion de nuevas Pantallas para Logica y navegacion:
+- Implementación de base de datos local para guardado de registros offline, con creacion de nuevas Pantallas para Logica y navegacion:
    - **CapturaDatosScreen**: formulario para crear y editar registros con validación y guardado local en estado 'pendiente'.
 
 <div align="center">
@@ -157,14 +157,14 @@ El diagrama se divide en dos flujos:
 
 
 
-- **RevisionScreen**: pantalla de revisión en modo solo lectura con opción a editar registros en estado 'pendiente'.
+   - **RevisionScreen**: pantalla de revisión en modo solo lectura con opción a editar registros en estado 'pendiente'.
 
 <div align="center" style="margin: 20px 0;">
   <img src="https://github.com/user-attachments/assets/27f26f35-e787-4c5a-9314-82cb67407120" alt="3" width="300" />
 </div>
 
 
-- **RegistrosGuardadosScreen**: listado de registros guardados localmente, con navegación a revisión y actualización automática al volver.
+   - **RegistrosGuardadosScreen**: listado de registros guardados localmente, con navegación a revisión y actualización automática al volver.
 
 <div align="center" style="margin: 20px 0;">
   <img src="https://github.com/user-attachments/assets/d7a4692b-3aa2-4595-acdb-3bfc20b2f259" alt="4" width="300" />
@@ -185,3 +185,55 @@ El diagrama se divide en dos flujos:
 
 ---
 
+##  Avances del Proyecto (v0.3.0 - 11/01/2026)
+
+- Se termino de desarrollar la estructura de base de datos local donde se guardara offline los datos registrados
+
+<div align="center" style="margin: 20px 0;">
+  <img src="https://github.com/user-attachments/assets/7b82518a-46ce-4075-8d22-c5bb7f010960" alt="base de datos local drawio" width="90%" />
+</div>
+
+> Diagrama de base de datos que se maneja de manera local
+
+- **Proyecto:** Es la entidad raiz. Contiene Nombre y el ID unico del proyecto.
+- **Predio:** Un proyecto puede tener multiples predios. Almacena el nombre, el ID y el area (GeoJSON) del predio.
+- **Parcela:** Un predio se divide en varias parcelas. Aquí se define la especie (Eucalipto, Pino, etc.) y el área de la parcela.
+- **Registro:** Es la unidad individual de cada arbol. Contiene las mediciones reales (DAP, altura, coordenadas GPS) y el estado de sincronización (pendiente/sincronizado).
+
+- Se crearon Screens para la toma y envio de datos entre entidades:
+   - **ProyectosMenuScreen:** Screen para creacion o seleccion de proyecto forestal.
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/ce8b8079-bf49-423b-ba0d-783ac94895ac" alt="1" width="300" />
+  <img src="https://github.com/user-attachments/assets/218e9663-d32f-484b-a799-441ead3871ed" alt="2" width="300" />
+</div>
+
+   > Screen de Proyectos
+  
+   - **PrediosMenuScreen:** Organización de predios vinculados a cada proyecto.
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/f260c476-5fe2-4f18-8aa0-d4c4e6ebe8c2" alt="3" width="300" />
+  <img src="https://github.com/user-attachments/assets/bbd16077-19c1-4e19-81d9-da20646f6dc9" alt="4" width="300" />
+</div>
+
+   > Screen de Predios
+     
+   - **ParcelasMenuScreen:** Clasificación de parcelas con selección de especie (Eucalipto, Pino Caribe, etc.).
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/b6250bbc-b344-42d5-b4b5-fb7bade2fe1d" alt="5" width="300" />
+  <img src="https://github.com/user-attachments/assets/2ac209ed-a58c-4565-bdd0-a73b6b364068" alt="6" width="300" />
+</div>
+ 
+   > Screen de Parcelas
+
+- Se actualizo la Screen de *Registros Guardados*
+
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/2314162e-ee0c-4afa-962f-19eb377e898d" alt="7" width="300" />
+</div>
+
+  > Screen de Registros Guardados
+
+ - Integracion de GraphQL en la aplicacion. Se configuro el main.dart del proyecto para que se conecte al cliente graphql_flutter, implementando su endpoint y API KEY.
