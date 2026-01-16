@@ -92,6 +92,8 @@ class LocalDatabase {
     ''');
   }
 
+  //s
+
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // Crear tablas iniciales si no existen
