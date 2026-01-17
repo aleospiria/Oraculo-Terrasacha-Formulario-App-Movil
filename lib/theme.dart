@@ -44,3 +44,5 @@ final terrasachaTheme = ThemeData(
     ),
   ),
 );
+
+//Ojala en el futuro añadir una version oscura de la aplicacion
