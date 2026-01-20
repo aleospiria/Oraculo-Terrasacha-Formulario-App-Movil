@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
-import 'package:amplify_api/amplify_api.dart';
+import 'package:amplify_api/amplify_api.dart'; // Importante
 
 import 'Screens/CapturaDatosScreen.dart';
 import 'Screens/ParcelasMenuScreen.dart';
@@ -14,22 +14,20 @@ import 'amplifyconfiguration.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await _configureAmplify();
-
   runApp(const CapturadorApp());
 }
 
 Future<void> _configureAmplify() async {
   try {
-    // Añadir el plugin de API
+    // Plugin de API (solo cliente)
     final api = AmplifyAPI();
     await Amplify.addPlugin(api);
 
-    // Configurar Amplify con el archivo generado
+    // Configuración con tu JSON manual
     await Amplify.configure(amplifyconfig);
 
-    safePrint('✅ Amplify configurado correctamente');
+    safePrint('✅ Amplify configurado contra la API del senior');
   } on Exception catch (e) {
     safePrint('❌ Error al configurar Amplify: $e');
   }
