@@ -44,6 +44,10 @@ dependencies:
 
   graphql_flutter: ^5.1.2
 
+  # Amplify
+  amplify_flutter: ^2.0.0
+  amplify_api: ^2.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
