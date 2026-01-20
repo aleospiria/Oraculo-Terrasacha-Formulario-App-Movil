@@ -237,3 +237,45 @@ El diagrama se divide en dos flujos:
   > Screen de Registros Guardados
 
  - Integracion de GraphQL en la aplicacion. Se configuro el main.dart del proyecto para que se conecte al cliente graphql_flutter, implementando su endpoint y API KEY.
+
+## Avances del Proyecto (v0.4.0 - 20/01/2026)
+
+- Eliminacion del cliente **graphql_flutter** y migracion hacia AWS usando **Amplify API (AppSync GraphQL)**.
+
+- Configuración de entorno AWS necesaria para integracion de Amplify en el proyecto Flutter:
+  - Creación de cuenta en AWS y configuración de usuario **IAM** con permisos para AppSync/Amplify.
+  - Ejecución de **amplify init** para vincular el proyecto Flutter con el backend en la nube.
+  - Integración del archivo **amplifyconfiguration.dart** con el **endpoint** y la **API Key** del backend.
+
+- Análisis completo del **schema.graphql**
+
+- Consumo de API GraphQL mediante **Amplify API**:
+
+
+
+  - Validación exitosa de las operaciones de los **@model**, como:
+    - **listProjects** → listado de proyectos desde la nube.
+    - **listTrees** → listado de árboles/predios asociados a proyectos.
+
+- Creación de la nueva pantalla **`SincronizacionScreen` → "Consultas"**:
+  - Pantalla dedicada para ejecutar consultas de prueba contra la API GraphQL.
+  - Botones para listar:
+    - **Proyectos** (`listProjects`).
+    - **Trees** (`listTrees`).
+  - Área de texto tipo “consola” (componente `SelectableText` dentro de un `Container` con scroll) que muestra en tiempo real la **Response** de la API, con formato tipo JSON y fuente monoespaciada para facilitar la lectura técnica.
+  - Esta pantalla sirve como herramienta interna de diagnóstico para validar conectividad, estructura de datos y comportamiento del backend sin depender todavía de la lógica de sincronización completa.
+
+- Desacople definitivo del cliente `graphql_flutter`:
+  - Eliminación del servicio `GraphQLApi` y sus dependencias.
+  - Limpieza de `pubspec.yaml` para remover `graphql_flutter` y dejar únicamente:
+    - `amplify_flutter`
+    - `amplify_api`
+  - Actualización de `main.dart` para que la aplicación inicialice Amplify al arrancar (`_configureAmplify`) y luego cargue directamente la app (`CapturadorApp`) sin necesidad de inyectar clientes externos.
+
+- Ajustes en la estructura del proyecto para estabilidad en producción:
+  - Corrección de pruebas automáticas heredadas del template de Flutter que hacían referencia a parámetros obsoletos (`graphQLClient`).
+  - Limpieza de archivos de configuración y ramas antiguas orientadas al cliente GraphQL previo.
+
+- Preparación del siguiente hito:
+  - Base lista para implementar la **sincronización real** entre la base de datos local (SQLite) y las entidades remotas de AppSync (`Project`, `Tree`, `RawData`).
+  - Rama principal del repositorio actualizada para reflejar la nueva arquitectura basada en **Amplify + AppSync**.
