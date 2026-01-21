@@ -238,6 +238,8 @@ El diagrama se divide en dos flujos:
 
  - Integracion de GraphQL en la aplicacion. Se configuro el main.dart del proyecto para que se conecte al cliente graphql_flutter, implementando su endpoint y API KEY.
 
+---
+
 ## Avances del Proyecto (v0.4.0 - 20/01/2026)
 
 - Eliminacion del cliente **graphql_flutter** y migracion hacia AWS usando **Amplify API (AppSync GraphQL)**.
@@ -249,33 +251,41 @@ El diagrama se divide en dos flujos:
 
 - Análisis completo del **schema.graphql**
 
-- Consumo de API GraphQL mediante **Amplify API**:
-
-
-
-  - Validación exitosa de las operaciones de los **@model**, como:
-    - **listProjects** → listado de proyectos desde la nube.
-    - **listTrees** → listado de árboles/predios asociados a proyectos.
-
-- Creación de la nueva pantalla **`SincronizacionScreen` → "Consultas"**:
+- Actualizacion de la pantalla **SincronizacionScreen**:
   - Pantalla dedicada para ejecutar consultas de prueba contra la API GraphQL.
   - Botones para listar:
     - **Proyectos** (`listProjects`).
     - **Trees** (`listTrees`).
-  - Área de texto tipo “consola” (componente `SelectableText` dentro de un `Container` con scroll) que muestra en tiempo real la **Response** de la API, con formato tipo JSON y fuente monoespaciada para facilitar la lectura técnica.
-  - Esta pantalla sirve como herramienta interna de diagnóstico para validar conectividad, estructura de datos y comportamiento del backend sin depender todavía de la lógica de sincronización completa.
+  - Área de texto tipo “consola” (componente **SelectableText** dentro de un **Container** con scroll, por si el texto es muy largo) que muestra en tiempo real el **Response** de la API, con formato tipo JSON.
 
-- Desacople definitivo del cliente `graphql_flutter`:
-  - Eliminación del servicio `GraphQLApi` y sus dependencias.
-  - Limpieza de `pubspec.yaml` para remover `graphql_flutter` y dejar únicamente:
-    - `amplify_flutter`
-    - `amplify_api`
-  - Actualización de `main.dart` para que la aplicación inicialice Amplify al arrancar (`_configureAmplify`) y luego cargue directamente la app (`CapturadorApp`) sin necesidad de inyectar clientes externos.
+    <div align="center">
+     <img src="https://github.com/user-attachments/assets/b54c02e7-46c8-44b3-a64a-f88cdf2b96ee" alt="7" width="300" />
+    </div>
 
-- Ajustes en la estructura del proyecto para estabilidad en producción:
-  - Corrección de pruebas automáticas heredadas del template de Flutter que hacían referencia a parámetros obsoletos (`graphQLClient`).
-  - Limpieza de archivos de configuración y ramas antiguas orientadas al cliente GraphQL previo.
+- Consumo de API GraphQL mediante **Amplify API**:
 
-- Preparación del siguiente hito:
-  - Base lista para implementar la **sincronización real** entre la base de datos local (SQLite) y las entidades remotas de AppSync (`Project`, `Tree`, `RawData`).
-  - Rama principal del repositorio actualizada para reflejar la nueva arquitectura basada en **Amplify + AppSync**.
+  - Validación exitosa de las operaciones de los **@model**, como:
+    - **listProjects:** listado de proyectos desde la nube.
+
+      <div align="center">
+        <img src="https://github.com/user-attachments/assets/b3706921-2045-49c1-97dc-08e8a08f944e" alt="2" width="300" />
+        <img src="https://github.com/user-attachments/assets/ef2350a5-78a4-4ece-bb0e-ef6e73bc561c" alt="3" width="300" />
+      </div>   
+      
+    - **listTrees:** listado de árboles asociados a proyectos.
+   
+      <div align="center">
+        <img src="https://github.com/user-attachments/assets/caf3285e-72b9-4073-875a-0a6a64311cf3" alt="4" width="300" />
+        <img src="https://github.com/user-attachments/assets/d24984b7-4ac8-4cec-bba4-42b42a0f019d" alt="5" width="300" />
+      </div>
+
+
+- Eliminacion definitiva del cliente **graphql_flutter**:
+  - Eliminación del servicio **GraphQLApi** y sus dependencias.
+  - Actualizacion de **pubspec.yaml** para remover **graphql_flutter** y añadir:
+    - **amplify_flutter**
+    - **amplify_api**
+  - Actualización de **main.dart** para que la aplicación inicialice Amplify al arrancar (**_configureAmplify**) y luego cargue directamente la app (**CapturadorOfflineApp**).
+
+---
+
