@@ -45,5 +45,5 @@ final terrasachaTheme = ThemeData(
   ),
 );
 
-//Ojala en el futuro añadir una version oscura de la aplicacion
+//Ojala en el futuro añadir una version oscura de la aplicacion (Organizar en una carpeta, theme_light.dart y theme_dark.dart)
 //Crear branch para ver el desarrollo con amplify
