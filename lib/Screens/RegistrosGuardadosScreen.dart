@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../data/LocalDatabase.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
+import '../models/ModelProvider.dart';
 
 class RegistrosGuardadosScreen extends StatefulWidget {
   const RegistrosGuardadosScreen({super.key});
@@ -18,7 +19,55 @@ class _RegistrosGuardadosScreenState extends State<RegistrosGuardadosScreen> {
   }
 
   void _loadRegistros() {
-    _registrosFuture = LocalDatabase.instance.getRegistrosConContexto();
+    _registrosFuture = _fetchRegistros();
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchRegistros() async {
+    try {
+      // Consulta todos los árboles (Tree)
+      final trees = await Amplify.DataStore.query(Tree.classType);
+
+      // Para cada árbol, consulta sus RawData y Project relacionados
+      List<Map<String, dynamic>> registros = [];
+
+      for (var tree in trees) {
+        // Obtener RawData relevantes (ejemplo: especie, estado, numArbol)
+        final rawDatas = await Amplify.DataStore.query(
+          RawData.classType,
+          where: RawData.TREE.eq(tree.id),
+        );
+
+        // Extraer datos específicos
+        String especie = rawDatas.firstWhere(
+              (rd) => rd.name == 'Especie',
+          orElse: () => RawData(name: 'Especie', valueString: 'Sin especie'),
+        ).valueString ?? 'Sin especie';
+
+        String numArbol = rawDatas.firstWhere(
+              (rd) => rd.name == 'Número de árbol',
+          orElse: () => RawData(name: 'Número de árbol', valueString: 'N/A'),
+        ).valueString ?? 'N/A';
+
+        // Obtener proyecto y predio (Project) relacionados
+        Project? project = tree.project;
+
+        registros.add({
+          'id': tree.id,
+          'parcela_nombre': tree.name,
+          'especie': especie,
+          'numArbol': numArbol,
+          'estado': tree.status ?? 'Desconocido',
+          'proyecto_nombre': project?.name ?? 'Sin proyecto',
+          'predio_nombre': project?.name ?? 'Sin predio', // Ajusta según tu modelo
+          // Agrega más campos si necesitas
+        });
+      }
+
+      return registros;
+    } catch (e) {
+      safePrint('Error cargando registros: $e');
+      return [];
+    }
   }
 
   @override

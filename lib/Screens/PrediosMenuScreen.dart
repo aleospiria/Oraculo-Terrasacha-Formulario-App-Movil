@@ -1,5 +1,7 @@
+// PrediosMenuScreen.dart
 import 'package:flutter/material.dart';
-import '../data/LocalDatabase.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
+import '../models/ModelProvider.dart';
 
 class PrediosMenuScreen extends StatefulWidget {
   const PrediosMenuScreen({super.key});
@@ -9,8 +11,8 @@ class PrediosMenuScreen extends StatefulWidget {
 }
 
 class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
-  List<Map<String, dynamic>> _predios = [];
-  int? _proyectoLocalId;
+  List<Project> _predios = [];
+  String? _proyectoId; // ID del proyecto padre
   String? _proyectoNombre;
 
   @override
@@ -18,31 +20,47 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null) {
-      _proyectoLocalId = args['proyecto_local_id'];
+      _proyectoId = args['proyecto_id']; // Ahora usamos ID de DataStore
       _proyectoNombre = args['proyecto_nombre'];
       _cargarPredios();
     }
   }
 
   Future<void> _cargarPredios() async {
-    if (_proyectoLocalId == null) return;
-    final predios = await LocalDatabase.instance.getPrediosByProyecto(_proyectoLocalId!);
-    setState(() {
-      _predios = predios;
-    });
+    if (_proyectoId == null) return;
+
+    try {
+      final todos = await Amplify.DataStore.query(Project.classType);
+      final predios = todos.where((p) =>
+      p.name.startsWith("Predio:") &&
+          p.id.contains(_proyectoId!) // Convención para asociar
+      ).toList();
+
+      setState(() {
+        _predios = predios;
+      });
+    } catch (e) {
+      safePrint('Error cargando predios: $e');
+    }
   }
 
   Future<void> _nuevoPredio(BuildContext context) async {
     final nombre = await _mostrarDialogoNuevoPredio(context);
-    if (nombre != null && nombre.trim().isNotEmpty && _proyectoLocalId != null) {
-      await LocalDatabase.instance.insertPredio({
-        'predio_id': 'local-${DateTime.now().millisecondsSinceEpoch}',
-        'nombre': nombre.trim(),
-        'poligono_geojson': '',
-        'proyecto_id': '',
-        'proyecto_local_id': _proyectoLocalId!,
-      });
-      await _cargarPredios();
+    if (nombre != null && nombre.trim().isNotEmpty && _proyectoId != null) {
+      try {
+        final predio = Project(
+          id: "${_proyectoId}_predio_${DateTime.now().millisecondsSinceEpoch}",
+          name: "Predio: $nombre",
+          status: "predio",
+        );
+        await Amplify.DataStore.save(predio);
+        await _cargarPredios();
+      } catch (e) {
+        safePrint('Error creando predio: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -56,9 +74,7 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
           title: const Text('Nuevo predio'),
           content: TextField(
             controller: controller,
-            decoration: const InputDecoration(
-              labelText: 'Nombre del predio',
-            ),
+            decoration: const InputDecoration(labelText: 'Nombre del predio'),
           ),
           actions: [
             TextButton(
@@ -67,9 +83,7 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
             ),
             ElevatedButton(
               child: const Text('Guardar'),
-              onPressed: () {
-                Navigator.pop(context, controller.text.trim());
-              },
+              onPressed: () => Navigator.pop(context, controller.text.trim()),
             ),
           ],
         );
@@ -111,14 +125,14 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
               itemBuilder: (context, index) {
                 final predio = _predios[index];
                 return ListTile(
-                  title: Text(predio['nombre'] ?? 'Sin nombre'),
+                  title: Text(predio.name.replaceAll("Predio: ", "")),
                   onTap: () {
                     Navigator.pushNamed(
                       context,
                       '/parcelas',
                       arguments: {
-                        'predio_local_id': predio['id'],
-                        'predio_nombre': predio['nombre'],
+                        'predio_id': predio.id, // Usamos ID de DataStore
+                        'predio_nombre': predio.name.replaceAll("Predio: ", ""),
                       },
                     );
                   },

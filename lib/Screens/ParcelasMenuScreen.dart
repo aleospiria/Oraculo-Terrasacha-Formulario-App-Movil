@@ -1,5 +1,7 @@
+// ParcelasMenuScreen.dart
 import 'package:flutter/material.dart';
-import '../data/LocalDatabase.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
+import '../models/ModelProvider.dart';
 
 class ParcelasMenuScreen extends StatefulWidget {
   const ParcelasMenuScreen({super.key});
@@ -9,8 +11,8 @@ class ParcelasMenuScreen extends StatefulWidget {
 }
 
 class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
-  List<Map<String, dynamic>> _parcelas = [];
-  int? _predioLocalId;
+  List<Tree> _parcelas = [];
+  String? _predioId; // ID del Project que actúa como predio
   String? _predioNombre;
 
   @override
@@ -18,32 +20,67 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null) {
-      _predioLocalId = args['predio_local_id'];
+      _predioId = args['predio_id'];
       _predioNombre = args['predio_nombre'];
       _cargarParcelas();
     }
   }
 
   Future<void> _cargarParcelas() async {
-    if (_predioLocalId == null) return;
-    final parcelas = await LocalDatabase.instance.getParcelasByPredio(_predioLocalId!);
-    setState(() {
-      _parcelas = parcelas;
-    });
+    if (_predioId == null) return;
+
+    try {
+      final todas = await Amplify.DataStore.query(Tree.classType);
+      final parcelas = todas.where((t) {
+        return t.name.startsWith("Parcela:") &&
+            t.project != null &&
+            t.project!.id == _predioId;
+      }).toList();
+
+      setState(() {
+        _parcelas = parcelas;
+      });
+    } catch (e) {
+      safePrint('Error cargando parcelas: $e');
+    }
   }
 
   Future<void> _nuevaParcela(BuildContext context) async {
     final resultado = await _mostrarDialogoNuevaParcelaConEspecie(context);
-    if (resultado != null && resultado['nombre']!.trim().isNotEmpty && resultado['especie'] != null && _predioLocalId != null) {
-      await LocalDatabase.instance.insertParcela({
-        'parcela_id': 'local-${DateTime.now().millisecondsSinceEpoch}',
-        'nombre': resultado['nombre']!.trim(),
-        'especie': resultado['especie']!,
-        'poligono_geojson': '',
-        'predio_id': '',
-        'predio_local_id': _predioLocalId!,
-      });
-      await _cargarParcelas();
+    if (resultado != null &&
+        resultado['nombre']!.trim().isNotEmpty &&
+        resultado['especie'] != null &&
+        _predioId != null) {
+      try {
+// Crear parcela (Tree)
+        final parcelaTemp = Tree(
+          name: "Parcela: ${resultado['nombre']}",
+          status: "parcela",
+        );
+
+// Asociar con Project usando copyWith
+        final parcela = parcelaTemp.copyWith(project: Project(id: _predioId!, name: '', status: ''));
+
+        await Amplify.DataStore.save(parcela);
+
+// Guardar especie como RawData
+        final especieTemp = RawData(
+          name: "Especie",
+          valueString: resultado['especie'],
+          timestamp: TemporalDateTime.now(),
+        );
+
+// Asociar con Tree
+        final especieData = especieTemp.copyWith(tree: Tree(id: parcela.id, name: ''));
+
+        await Amplify.DataStore.save(especieData);
+        await _cargarParcelas();
+      } catch (e) {
+        safePrint('Error creando parcela: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -51,7 +88,7 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
     final nombreController = TextEditingController();
     String? especieSeleccionada;
 
-    return showDialog<Map<String, String>>(
+    return showDialog<Map<String, String>?>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -63,9 +100,7 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
                 children: [
                   TextField(
                     controller: nombreController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nombre de la parcela',
-                    ),
+                    decoration: const InputDecoration(labelText: 'Nombre de la parcela'),
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
@@ -78,9 +113,8 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
                       DropdownMenuItem(value: 'Pino Caribe', child: Text('Pino Caribe')),
                       DropdownMenuItem(value: 'Forestal Ornamental', child: Text('Forestal Ornamental')),
                     ],
-                    initialValue: especieSeleccionada,
+                    value: especieSeleccionada,
                     onChanged: (val) => setState(() => especieSeleccionada = val),
-                    validator: (val) => val == null ? 'Seleccione una especie' : null,
                   ),
                 ],
               );
@@ -95,7 +129,6 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
               child: const Text('Guardar'),
               onPressed: () {
                 if (nombreController.text.trim().isEmpty || especieSeleccionada == null) {
-                  // Aquí puedes mostrar un mensaje de error si quieres
                   return;
                 }
                 Navigator.pop(context, {
@@ -154,15 +187,28 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
               itemBuilder: (context, index) {
                 final parcela = _parcelas[index];
                 return ListTile(
-                  title: Text(parcela['nombre'] ?? 'Sin nombre'),
-                  subtitle: Text('Especie: ${parcela['especie'] ?? 'No especificada'}'),
+                  title: Text(parcela.name.replaceAll("Parcela: ", "")),
+                  subtitle: FutureBuilder<RawData?>(
+                    future: _getEspecieFromParcela(parcela.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.done) {
+                        if (snapshot.hasData && snapshot.data!.valueString != null) {
+                          return Text('Especie: ${snapshot.data!.valueString}');
+                        } else {
+                          return const Text('Sin especie');
+                        }
+                      } else {
+                        return const Text('Cargando especie...');
+                      }
+                    },
+                  ),
                   onTap: () {
                     Navigator.pushNamed(
                       context,
                       '/captura',
                       arguments: {
-                        'parcela_local_id': parcela['id'],
-                        'parcela_nombre': parcela['nombre'],
+                        'parcela_id': parcela.id,
+                        'parcela_nombre': parcela.name.replaceAll("Parcela: ", ""),
                       },
                     );
                   },
@@ -173,5 +219,18 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
         ],
       ),
     );
+  }
+
+  Future<RawData?> _getEspecieFromParcela(String parcelaId) async {
+    try {
+      final resultados = await Amplify.DataStore.query(
+        RawData.classType,
+        where: RawData.TREE.eq(parcelaId) & RawData.NAME.eq("Especie"),
+      );
+      return resultados.isNotEmpty ? resultados.first : null;
+    } catch (e) {
+      safePrint('Error obteniendo especie: $e');
+      return null;
+    }
   }
 }

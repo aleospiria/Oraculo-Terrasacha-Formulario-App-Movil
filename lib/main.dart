@@ -1,6 +1,9 @@
+// main.dart
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
-import 'package:amplify_api/amplify_api.dart'; // Importante
+import 'package:amplify_api/amplify_api.dart';
+import 'package:amplify_datastore/amplify_datastore.dart';
+import 'models/ModelProvider.dart';
 
 import 'Screens/CapturaDatosScreen.dart';
 import 'Screens/ParcelasMenuScreen.dart';
@@ -20,14 +23,16 @@ Future<void> main() async {
 
 Future<void> _configureAmplify() async {
   try {
-    // Plugin de API (solo cliente)
     final api = AmplifyAPI();
-    await Amplify.addPlugin(api);
+    final dataStore = AmplifyDataStore(modelProvider: ModelProvider.instance);
 
-    // Configuración con tu JSON manual
+    await Amplify.addPlugins([api, dataStore]);
     await Amplify.configure(amplifyconfig);
 
-    safePrint('✅ Amplify configurado contra la API del senior');
+    // Iniciar DataStore para asegurar sincronización
+    await Amplify.DataStore.start();
+
+    safePrint('✅ Amplify y DataStore configurados');
   } on Exception catch (e) {
     safePrint('❌ Error al configurar Amplify: $e');
   }

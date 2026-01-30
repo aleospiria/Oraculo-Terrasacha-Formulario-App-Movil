@@ -1,5 +1,7 @@
+// CapturaDatosScreen.dart
 import 'package:flutter/material.dart';
-import '../data/LocalDatabase.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
+import '../models/ModelProvider.dart';
 
 class CapturaDatosScreen extends StatefulWidget {
   const CapturaDatosScreen({super.key});
@@ -17,10 +19,9 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
   final _observacionesController = TextEditingController();
 
   String? _coordenadas;
-  int? _registroId;
-  int? _parcelaLocalId;
+  String? _parcelaId; // Cambiado de int a String para usar ID de DataStore
   String? _parcelaNombre;
-  String? _especie; // ✅ Nuevo: especie de la parcela
+  String? _especie;
 
   @override
   void initState() {
@@ -28,30 +29,40 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       if (args != null) {
-        _registroId = args['id'] as int?;
-        _parcelaLocalId = args['parcela_local_id'] as int?;
+        _parcelaId = args['parcela_id'] as String?; // Usar ID de DataStore
         _parcelaNombre = args['parcela_nombre'] as String?;
 
-        // ✅ Cargar especie desde la parcela
-        if (_parcelaLocalId != null) {
-          final parcela = await LocalDatabase.instance.getParcelaById(_parcelaLocalId!);
-          if (parcela != null) {
-            setState(() {
-              _especie = parcela['especie'] as String?;
-            });
-          }
+        // Cargar especie desde la parcela usando DataStore
+        if (_parcelaId != null) {
+          await _cargarEspecieDesdeParcela(_parcelaId!);
         }
 
-        // Si estás editando un registro existente
-        if (_registroId != null) {
-          _numArbolController.text = (args['numArbol'] ?? '').toString();
-          _diametroController.text = (args['diametro'] ?? '').toString();
-          _alturaController.text = (args['altura'] ?? '').toString();
-          _observacionesController.text = args['observaciones'] ?? '';
-          _coordenadas = args['coordenadas'] ?? '';
-        }
+        // Precargar datos si es edición (opcional)
+        _numArbolController.text = (args['numArbol'] ?? '').toString();
+        _diametroController.text = (args['diametro'] ?? '').toString();
+        _alturaController.text = (args['altura'] ?? '').toString();
+        _observacionesController.text = args['observaciones'] ?? '';
+        _coordenadas = args['coordenadas'] ?? '';
       }
     });
+  }
+
+  Future<void> _cargarEspecieDesdeParcela(String parcelaId) async {
+    try {
+      // Buscar datos de especie relacionados con esta parcela
+      final resultados = await Amplify.DataStore.query(
+        RawData.classType,
+        where: RawData.TREE.eq(parcelaId) & RawData.NAME.eq("Especie"),
+      );
+
+      if (resultados.isNotEmpty) {
+        setState(() {
+          _especie = resultados.first.valueString;
+        });
+      }
+    } catch (e) {
+      safePrint('Error cargando especie: $e');
+    }
   }
 
   @override
@@ -70,37 +81,61 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
   }
 
   Future<void> _guardarBorrador() async {
-    if (_formKey.currentState!.validate() && _parcelaLocalId != null) {
-      final registro = {
-        'parcela_id': '',
-        'parcela_local_id': _parcelaLocalId!,
-        'numArbol': int.tryParse(_numArbolController.text) ?? 0,
-        'diametro': double.tryParse(_diametroController.text) ?? 0.0,
-        'altura': double.tryParse(_alturaController.text) ?? 0.0,
-        'observaciones': _observacionesController.text,
-        'coordenadas': _coordenadas ?? '',
-        'estado': 'pendiente',
-        'created_at': DateTime.now().toIso8601String(),
-        'updated_at': DateTime.now().toIso8601String(),
-      };
+    if (_formKey.currentState!.validate() && _parcelaId != null) {
+      try {
+        // Crear el árbol (Tree) con valores dummy para campos obligatorios
+        final treeBase = Tree(
+          name: 'Árbol ${_numArbolController.text}',
+          status: 'pendiente',
+        );
 
-      if (_registroId != null) {
-        await LocalDatabase.instance.updateRegistro(_registroId!, registro);
-      } else {
-        await LocalDatabase.instance.insertRegistro(registro);
+        // Asociar con la parcela usando copyWith
+        final tree = treeBase.copyWith(
+          project: Project(id: _parcelaId!, name: 'dummy', status: 'dummy')
+        );
+
+        await Amplify.DataStore.save(tree);
+
+        // Crear RawData para cada medición
+        final datos = <RawData>[
+          RawData(
+            name: 'Número de árbol',
+            valueFloat: double.tryParse(_numArbolController.text) ?? 0,
+            timestamp: TemporalDateTime.now(),
+          ).copyWith(tree: Tree(id: tree.id, name: 'dummy')),
+
+          RawData(
+            name: 'Diámetro',
+            valueFloat: double.tryParse(_diametroController.text) ?? 0,
+            timestamp: TemporalDateTime.now(),
+          ).copyWith(tree: Tree(id: tree.id, name: 'dummy')),
+
+          RawData(
+            name: 'Altura',
+            valueFloat: double.tryParse(_alturaController.text) ?? 0,
+            timestamp: TemporalDateTime.now(),
+          ).copyWith(tree: Tree(id: tree.id, name: 'dummy')),
+        ];
+
+        // Guardar todos los RawData en paralelo
+        await Future.wait(datos.map((dato) => Amplify.DataStore.save(dato)));
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Borrador guardado con DataStore')),
+        );
+      } catch (e) {
+        safePrint('Error guardando borrador: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
       }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Borrador guardado localmente')),
-      );
     }
   }
 
   void _irARevision() {
     if (_formKey.currentState!.validate()) {
       Navigator.pushNamed(context, '/revision', arguments: {
-        'id': _registroId,
-        'parcela_local_id': _parcelaLocalId,
+        'parcela_id': _parcelaId,
         'parcela_nombre': _parcelaNombre,
         'especie': _especie,
         'numArbol': _numArbolController.text,
@@ -108,7 +143,6 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
         'altura': _alturaController.text,
         'observaciones': _observacionesController.text,
         'coordenadas': _coordenadas,
-        'estado': 'pendiente',
       });
     }
   }
