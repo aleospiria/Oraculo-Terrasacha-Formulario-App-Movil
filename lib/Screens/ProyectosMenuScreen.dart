@@ -1,7 +1,9 @@
+// ProyectosMenuScreen.dart
+import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart';
-import '../data/LocalDatabase.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
+import '../models/ModelProvider.dart';
+import 'dart:async';
 
 class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
@@ -11,84 +13,70 @@ class ProyectosMenuScreen extends StatefulWidget {
 }
 
 class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
-  List<Map<String, dynamic>> proyectos = [];
+  List<Project> proyectos = [];
+  bool cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _cargarProyectos();
+    _cargarProyectosDeLaNube(); // Usamos API directo para saltar el error de DataStore
   }
 
-
-  Future<void> _cargarProyectos() async {
+  // ESTA ES LA FUNCIÓN CLAVE: Va directo a la nube sin pasar por DataStore
+  Future<void> _cargarProyectosDeLaNube() async {
+    setState(() => cargando = true);
     try {
-      final lista = await LocalDatabase.instance.getProyectos();
+      final request = ModelQueries.list(Project.classType);
+      final response = await Amplify.API.query(request: request).response;
+
+      final lista = response.data?.items.whereType<Project>().toList() ?? [];
+
       setState(() {
         proyectos = lista;
+        cargando = false;
+      });
+
+      // Una vez traídos de la nube, los guardamos en DataStore para que estén offline
+      for (var p in lista) {
+        await Amplify.DataStore.save(p);
+      }
+
+    } catch (e) {
+      safePrint('Error directo de API: $e');
+      // Si falla la nube, intentamos carga local
+      _cargarProyectosLocales();
+    }
+  }
+
+  Future<void> _cargarProyectosLocales() async {
+    try {
+      final lista = await Amplify.DataStore.query(Project.classType);
+      setState(() {
+        proyectos = lista;
+        cargando = false;
       });
     } catch (e) {
-      debugPrint('Error al cargar proyectos: $e');
+      safePrint('Error local: $e');
     }
   }
 
   Future<void> _crearProyecto(String nombre) async {
     try {
-      await LocalDatabase.instance.insertProyecto({
-        'proyecto_id': 'local-${DateTime.now().millisecondsSinceEpoch}',
-        'nombre': nombre,
-      });
-      // Recargamos la lista después de insertar
-      await _cargarProyectos();
+      final nuevoProyecto = Project(
+        name: nombre,
+        status: 'activo',
+      );
+      // Guardamos en DataStore (esto se sincronizará cuando pueda)
+      await Amplify.DataStore.save(nuevoProyecto);
+
+      // Refrescamos la lista localmente para que el usuario vea el cambio
+      await _cargarProyectosLocales();
     } catch (e) {
-      debugPrint('Error creando proyecto: $e');
+      safePrint('Error creando proyecto: $e');
     }
   }
 
-  // Recibe el BuildContext explícitamente para evitar el error de tipos
-  Future<void> _nuevoProyecto(BuildContext context) async {
-    final controller = TextEditingController();
-
-    final nombre = await showDialog<String>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Nuevo proyecto'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(labelText: 'Nombre del proyecto'),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancelar'),
-              onPressed: () => Navigator.pop(dialogContext),
-            ),
-            ElevatedButton(
-              child: const Text('Guardar'),
-              onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (nombre != null && nombre.isNotEmpty) {
-      await _crearProyecto(nombre);
-    }
-  }
-
-  Future<void> _borrarBaseDeDatos() async {
-    try {
-      final dbPath = await getDatabasesPath();
-      final path = join(dbPath, 'capturador.db');
-      await deleteDatabase(path);
-      debugPrint('Base de datos borrada');
-      setState(() {
-        proyectos = [];
-      });
-    } catch (e) {
-      debugPrint('Error borrando base de datos: $e');
-    }
-  }
+  // ... (El resto del código _nuevoProyecto y build se mantiene igual)
 
   @override
   Widget build(BuildContext context) {
@@ -97,78 +85,40 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
         title: const Text('Menú Proyectos'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.cloud_sync),
-            onPressed: () {
-              Navigator.pushNamed(context, '/sincronizacion');
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_forever),
-            tooltip: 'Borrar base de datos',
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (BuildContext dialogContext) {
-                  return AlertDialog(
-                    title: const Text('Confirmar borrado'),
-                    content: const Text('¿Seguro que quieres borrar toda la base de datos?'),
-                    actions: [
-                      TextButton(
-                        child: const Text('Cancelar'),
-                        onPressed: () => Navigator.pop(dialogContext, false),
-                      ),
-                      ElevatedButton(
-                        child: const Text('Borrar'),
-                        onPressed: () => Navigator.pop(dialogContext, true),
-                      ),
-                    ],
-                  );
-                },
-              );
-              if (confirm == true) {
-                await _borrarBaseDeDatos();
-              }
-            },
+            icon: const Icon(Icons.refresh),
+            onPressed: _cargarProyectosDeLaNube, // Botón para forzar refresco de nube
           ),
         ],
       ),
       body: Column(
         children: [
           const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Nuevo proyecto'),
-              // Aquí pasamos el context del build explícitamente
-              onPressed: () => _nuevoProyecto(context),
-            ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add),
+            label: const Text('Nuevo proyecto'),
+            onPressed: () => _nuevoProyecto(context),
           ),
-          const SizedBox(height: 16),
           const Divider(),
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Lista: Escoger proyecto',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
           Expanded(
-            child: proyectos.isEmpty
+            child: cargando
+                ? const Center(child: CircularProgressIndicator())
+                : proyectos.isEmpty
                 ? const Center(child: Text('No hay proyectos'))
                 : ListView.builder(
               itemCount: proyectos.length,
-              itemBuilder: (BuildContext itemContext, int index) {
+              itemBuilder: (context, index) {
                 final proyecto = proyectos[index];
                 return ListTile(
-                  title: Text(proyecto['nombre'] ?? 'Sin nombre'),
+                  leading: const Icon(Icons.folder),
+                  title: Text(proyecto.name),
+                  subtitle: Text('ID: ${proyecto.id.substring(0,8)}...'),
                   onTap: () {
                     Navigator.pushNamed(
-                      itemContext,
+                      context,
                       '/predios',
                       arguments: {
-                        'proyecto_local_id': proyecto['id'],
-                        'proyecto_nombre': proyecto['nombre'],
+                        'proyecto_id': proyecto.id,
+                        'proyecto_nombre': proyecto.name,
                       },
                     );
                   },
@@ -179,5 +129,22 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
         ],
       ),
     );
+  }
+
+  // ... (Mantén el método _nuevoProyecto que ya teníamos)
+  Future<void> _nuevoProyecto(BuildContext context) async {
+    final controller = TextEditingController();
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Nuevo proyecto'),
+        content: TextField(controller: controller),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (nombre != null && nombre.isNotEmpty) await _crearProyecto(nombre);
   }
 }
