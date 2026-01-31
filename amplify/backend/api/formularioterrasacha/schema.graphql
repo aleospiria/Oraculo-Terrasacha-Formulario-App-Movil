@@ -1,4 +1,6 @@
-input AMPLIFY { globalAuthRule: AuthRule = { allow: public } }
+input AMPLIFY {
+  globalAuthRule: AuthRule = { allow: public }
+}
 
 type UnitOfMeasure @model {
   id: ID!
