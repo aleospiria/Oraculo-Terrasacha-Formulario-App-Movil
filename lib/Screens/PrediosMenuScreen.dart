@@ -1,7 +1,7 @@
-// PrediosMenuScreen.dart
+import 'dart:convert';
+import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
-import '../models/ModelProvider.dart';
 
 class PrediosMenuScreen extends StatefulWidget {
   const PrediosMenuScreen({super.key});
@@ -11,130 +11,125 @@ class PrediosMenuScreen extends StatefulWidget {
 }
 
 class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
-  List<Project> _predios = [];
-  String? _proyectoId; // ID del proyecto padre
-  String? _proyectoNombre;
+  List<Map<String, dynamic>> items = [];
+  bool cargando = true;
+  late String proyectoId;
+  late String proyectoNombre;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    if (args != null) {
-      _proyectoId = args['proyecto_id']; // Ahora usamos ID de DataStore
-      _proyectoNombre = args['proyecto_nombre'];
-      _cargarPredios();
-    }
+    // Recuperamos los argumentos del proyecto seleccionado
+    final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+    proyectoId = args['proyecto_id'];
+    proyectoNombre = args['proyecto_nombre'];
+    _cargarDatosDeLaNube();
   }
 
-  Future<void> _cargarPredios() async {
-    if (_proyectoId == null) return;
+  // ✅ Consulta filtrada por Proyecto
+  Future<void> _cargarDatosDeLaNube() async {
+    setState(() => cargando = true);
+
+    // Query que busca los Trees (Predios) filtrando por el ID del proyecto
+    const query = r'''
+      query ListTrees($filter: ModelTreeFilterInput) {
+        listTrees(filter: $filter) {
+          items {
+            id
+            name
+            status
+          }
+        }
+      }
+    ''';
 
     try {
-      final todos = await Amplify.DataStore.query(Project.classType);
-      final predios = todos.where((p) =>
-      p.name.startsWith("Predio:") &&
-          p.id.contains(_proyectoId!) // Convención para asociar
-      ).toList();
+      final request = GraphQLRequest<String>(
+        document: query,
+        variables: {
+          'filter': {
+            'projectTreesId': {'eq': proyectoId} // Ajusta este nombre según tu esquema generado
+          }
+        },
+      );
 
-      setState(() {
-        _predios = predios;
-      });
+      final response = await Amplify.API.query(request: request).response;
+
+      if (response.data != null) {
+        final jsonData = jsonDecode(response.data!);
+        final list = jsonData['listTrees']['items'] as List<dynamic>;
+        setState(() {
+          items = List<Map<String, dynamic>>.from(list);
+          cargando = false;
+        });
+      }
     } catch (e) {
       safePrint('Error cargando predios: $e');
+      setState(() => cargando = false);
     }
   }
 
-  Future<void> _nuevoPredio(BuildContext context) async {
-    final nombre = await _mostrarDialogoNuevoPredio(context);
-    if (nombre != null && nombre.trim().isNotEmpty && _proyectoId != null) {
-      try {
-        final predio = Project(
-          id: "${_proyectoId}_predio_${DateTime.now().millisecondsSinceEpoch}",
-          name: "Predio: $nombre",
-          status: "predio",
-        );
-        await Amplify.DataStore.save(predio);
-        await _cargarPredios();
-      } catch (e) {
-        safePrint('Error creando predio: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+  // ✅ Creación de un nuevo Predio/Tree vinculado al proyecto
+  Future<void> _crearItem(String nombre) async {
+    const mutation = r'''
+      mutation CreateTree($input: CreateTreeInput!) {
+        createTree(input: $input) {
+          id
+          name
+        }
       }
+    ''';
+
+    try {
+      final request = GraphQLRequest<String>(
+        document: mutation,
+        variables: {
+          'input': {
+            'name': nombre,
+            'status': 'Pendiente',
+            'projectTreesId': proyectoId // Vinculación vital
+          }
+        },
+      );
+      await Amplify.API.mutate(request: request).response;
+      _cargarDatosDeLaNube(); // Refrescar
+    } catch (e) {
+      safePrint('Error creando predio: $e');
     }
-  }
-
-  Future<String?> _mostrarDialogoNuevoPredio(BuildContext context) async {
-    final controller = TextEditingController();
-
-    return showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Nuevo predio'),
-          content: TextField(
-            controller: controller,
-            decoration: const InputDecoration(labelText: 'Nombre del predio'),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancelar'),
-              onPressed: () => Navigator.pop(context),
-            ),
-            ElevatedButton(
-              child: const Text('Guardar'),
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Predios - ${_proyectoNombre ?? ''}'),
-      ),
+      appBar: AppBar(title: Text('Predios: $proyectoNombre')),
       body: Column(
         children: [
-          const SizedBox(height: 16),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding: const EdgeInsets.all(16.0),
             child: ElevatedButton.icon(
-              icon: const Icon(Icons.add_location_alt),
-              label: const Text('Nuevo predio'),
-              onPressed: () => _nuevoPredio(context),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Divider(),
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              'Lista: Escoger predio',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              icon: const Icon(Icons.add),
+              label: const Text('Nuevo Predio'),
+              onPressed: () => _mostrarDialogoNuevo(context),
             ),
           ),
           Expanded(
-            child: _predios.isEmpty
-                ? const Center(child: Text('No hay predios'))
+            child: cargando
+                ? const Center(child: CircularProgressIndicator())
+                : items.isEmpty
+                ? const Center(child: Text('No hay predios en este proyecto'))
                 : ListView.builder(
-              itemCount: _predios.length,
+              itemCount: items.length,
               itemBuilder: (context, index) {
-                final predio = _predios[index];
+                final item = items[index];
                 return ListTile(
-                  title: Text(predio.name.replaceAll("Predio: ", "")),
+                  leading: const Icon(Icons.location_on),
+                  title: Text(item['name']),
                   onTap: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/parcelas',
-                      arguments: {
-                        'predio_id': predio.id, // Usamos ID de DataStore
-                        'predio_nombre': predio.name.replaceAll("Predio: ", ""),
-                      },
-                    );
+                    // Siguiente nivel: Captura de datos
+                    Navigator.pushNamed(context, '/captura', arguments: {
+                      'tree_id': item['id'],
+                      'tree_name': item['name'],
+                    });
                   },
                 );
               },
@@ -143,5 +138,21 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _mostrarDialogoNuevo(BuildContext context) async {
+    final controller = TextEditingController();
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nombre del Predio'),
+        content: TextField(controller: controller),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Guardar')),
+        ],
+      ),
+    );
+    if (nombre != null && nombre.isNotEmpty) _crearItem(nombre);
   }
 }

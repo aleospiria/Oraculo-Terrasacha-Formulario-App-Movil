@@ -10,6 +10,11 @@
       "StackName": "amplify-formularioterrasacha-dev-b50d7",
       "StackId": "arn:aws:cloudformation:us-east-1:162076078956:stack/amplify-formularioterrasacha-dev-b50d7/7ddda3c0-f44a-11f0-804e-0e124f123293",
       "AmplifyAppId": "d1ew4zsl7dxx48"
+    },
+    "categories": {
+      "api": {
+        "formularioterrasacha": {}
+      }
     }
   }
 }

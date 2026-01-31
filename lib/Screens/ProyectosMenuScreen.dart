@@ -1,9 +1,8 @@
 // ProyectosMenuScreen.dart
+import 'dart:convert';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
-import '../models/ModelProvider.dart';
-import 'dart:async';
 
 class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
@@ -13,70 +12,128 @@ class ProyectosMenuScreen extends StatefulWidget {
 }
 
 class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
-  List<Project> proyectos = [];
+  List<Map<String, dynamic>> proyectos = []; // Usamos Map para evitar modelos rotos
   bool cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _cargarProyectosDeLaNube(); // Usamos API directo para saltar el error de DataStore
+    _cargarProyectosDeLaNube();
   }
 
-  // ESTA ES LA FUNCIÓN CLAVE: Va directo a la nube sin pasar por DataStore
+  // ✅ Consulta directa a la nube sin DataStore
   Future<void> _cargarProyectosDeLaNube() async {
     setState(() => cargando = true);
+
+    const query = r'''
+      query ListProjects {
+        listProjects {
+          items {
+            id
+            name
+            status
+          }
+        }
+      }
+    ''';
+
     try {
-      final request = ModelQueries.list(Project.classType);
+      final request = GraphQLRequest<String>(document: query);
       final response = await Amplify.API.query(request: request).response;
 
-      final lista = response.data?.items.whereType<Project>().toList() ?? [];
-
-      setState(() {
-        proyectos = lista;
-        cargando = false;
-      });
-
-      // Una vez traídos de la nube, los guardamos en DataStore para que estén offline
-      for (var p in lista) {
-        await Amplify.DataStore.save(p);
+      if (response.errors.isNotEmpty) {
+        safePrint('Errores en consulta: ${response.errors}');
+        setState(() {
+          proyectos = [];
+          cargando = false;
+        });
+        return;
       }
 
-    } catch (e) {
-      safePrint('Error directo de API: $e');
-      // Si falla la nube, intentamos carga local
-      _cargarProyectosLocales();
-    }
-  }
+      final data = response.data;
+      if (data == null) {
+        setState(() {
+          proyectos = [];
+          cargando = false;
+        });
+        return;
+      }
 
-  Future<void> _cargarProyectosLocales() async {
-    try {
-      final lista = await Amplify.DataStore.query(Project.classType);
+      // Parsear JSON manualmente
+      final jsonData = jsonDecode(data);
+      final items = jsonData['listProjects']['items'] as List<dynamic>;
+
       setState(() {
-        proyectos = lista;
+        proyectos = List<Map<String, dynamic>>.from(items);
         cargando = false;
       });
     } catch (e) {
-      safePrint('Error local: $e');
+      safePrint('Error en consulta GraphQL: $e');
+      setState(() {
+        proyectos = [];
+        cargando = false;
+      });
     }
   }
 
+  // ✅ Mutación para crear proyecto sin DataStore
   Future<void> _crearProyecto(String nombre) async {
-    try {
-      final nuevoProyecto = Project(
-        name: nombre,
-        status: 'activo',
-      );
-      // Guardamos en DataStore (esto se sincronizará cuando pueda)
-      await Amplify.DataStore.save(nuevoProyecto);
+    const mutation = r'''
+      mutation CreateProject($name: String!, $status: String!) {
+        createProject(input: {name: $name, status: $status}) {
+          id
+          name
+          status
+        }
+      }
+    ''';
 
-      // Refrescamos la lista localmente para que el usuario vea el cambio
-      await _cargarProyectosLocales();
+    final variables = {
+      'name': nombre,
+      'status': 'activo',
+    };
+
+    try {
+      final request = GraphQLRequest<String>(
+        document: mutation,
+        variables: variables,
+      );
+      final response = await Amplify.API.mutate(request: request).response;
+
+      if (response.errors.isNotEmpty) {
+        safePrint('Error en mutación: ${response.errors}');
+        return;
+      }
+
+      safePrint('Proyecto creado: ${response.data}');
+      // Refrescar lista tras crear
+      _cargarProyectosDeLaNube();
     } catch (e) {
-      safePrint('Error creando proyecto: $e');
+      safePrint('Error en mutación GraphQL: $e');
     }
   }
 
-  // ... (El resto del código _nuevoProyecto y build se mantiene igual)
+  Future<void> _nuevoProyecto(BuildContext context) async {
+    final controller = TextEditingController();
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Nuevo proyecto'),
+        content: TextField(controller: controller),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    if (nombre != null && nombre.isNotEmpty) await _crearProyecto(nombre);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +143,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _cargarProyectosDeLaNube, // Botón para forzar refresco de nube
+            onPressed: _cargarProyectosDeLaNube,
           ),
         ],
       ),
@@ -110,15 +167,15 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                 final proyecto = proyectos[index];
                 return ListTile(
                   leading: const Icon(Icons.folder),
-                  title: Text(proyecto.name),
-                  subtitle: Text('ID: ${proyecto.id.substring(0,8)}...'),
+                  title: Text(proyecto['name']),
+                  subtitle: Text('ID: ${proyecto['id'].substring(0, 8)}...'),
                   onTap: () {
                     Navigator.pushNamed(
                       context,
                       '/predios',
                       arguments: {
-                        'proyecto_id': proyecto.id,
-                        'proyecto_nombre': proyecto.name,
+                        'proyecto_id': proyecto['id'],
+                        'proyecto_nombre': proyecto['name'],
                       },
                     );
                   },
@@ -129,22 +186,5 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
         ],
       ),
     );
-  }
-
-  // ... (Mantén el método _nuevoProyecto que ya teníamos)
-  Future<void> _nuevoProyecto(BuildContext context) async {
-    final controller = TextEditingController();
-    final nombre = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Nuevo proyecto'),
-        content: TextField(controller: controller),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-          ElevatedButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim()), child: const Text('Guardar')),
-        ],
-      ),
-    );
-    if (nombre != null && nombre.isNotEmpty) await _crearProyecto(nombre);
   }
 }
