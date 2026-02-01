@@ -289,3 +289,42 @@ El diagrama se divide en dos flujos:
 
 ---
 
+## Avances del Proyecto (v0.5.0 - 01/02/2026)
+
+- Conversion de pantallas, pasando de Stateless (Inmutable) a StatefulWidget (Mutable segun eventos, en este caso, alguna actualizacion en los datos para que se refleje en tiempo real)
+- Resolucion de conflictos (No se pudieron seguir posponiendo porque ya no dejaban correr la app) en cuanto al Context que no es un subtipo de BuildContext, dado que ya no se estaban usando valores de pruebas, si no que se estaban obteniendo ya valores existentes.
+- Resolucion de sintaxis, el Framework Flutter no deja instanciar una clase desde un **OnPressed:** si no se tiene la sintasix **() =>** para definir la clase con el parametro Context (Punto anterior), por lo que se cambio esa sintaxis en todas las pantallas que presentaban fallas al aplicar el punto anterior.
+  
+   <div align="center">
+      <img src="https://github.com/user-attachments/assets/eac978cf-ddf5-4048-b8c2-217e3b9eb68c" alt="1" width="90%" />
+   </div>
+
+- Integracion de Amplify DataStore para la creacion de base de datos local segun el modelo que haya en la nube y en el Schema.graphql
+- Uso de Apis para la obtencion de los datos porque el modelo desplegado en la nube no tiene **Conflict Detection**, haciendo que los modelos tengan ausencia de los campos _version, _lastChangedAt y _deleted, haciendo que no se pueda usar el Websocket de DataStore.
+   - **ProyectosMenuScreen:** Ahora se conecta a los proyectos que hay en la nube y mientra obtiene los datos, se muestra un circulo de carga.
+
+   <div align="center">
+      <img src="https://github.com/user-attachments/assets/7aa484b1-a2b4-4c88-9044-6397b5b6c27e" alt="2" width="300" />
+      <img src="https://github.com/user-attachments/assets/d3a2f0d8-fe8d-4a0a-ae8e-a6f95f3c2fdf" alt="3" width="300" />
+   </div>
+   
+   > Screen ProyectosMenuScreen
+   
+   - **PrediosMenuScreen:** Se conecta segun al proyecto que esta vinculado, mostrando un circulo de carga en el proceso.
+
+   <div align="center">
+      <img src="https://github.com/user-attachments/assets/f943b506-e176-441c-9ec8-70a6091b4621" alt="4" width="300" />
+      <img src="https://github.com/user-attachments/assets/eced6fc3-66a2-463b-af23-aaf66f7353c1" alt="5" width="300" />
+   </div>
+   
+   > Screen PrediosMenuScreen
+
+   - **CapturaDatosScreen:** Muestra los datos del arbol seleccionado, por problemas con la autenticacion con DataStore y su obtencion de datos "infinita" (Nunca se logra la conexión por falta de los campos antes mencionados y solo se queda cargando a la espera de una respuesta inexistente)
+
+   <div align="center">
+      <img src="https://github.com/user-attachments/assets/a375ba61-ef86-48d6-a451-c3972e50abce" alt="6" width="300" />
+   </div>
+   
+   > Screen CapturaDatosScreen cargando indefinidamente
+
+---
