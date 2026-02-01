@@ -60,3 +60,4 @@ class CapturadorApp extends StatelessWidget {
     );
   }
 }
+// A la espera
