@@ -12,7 +12,7 @@ class ProyectosMenuScreen extends StatefulWidget {
 }
 
 class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
-  List<Map<String, dynamic>> proyectos = []; // Usamos Map para evitar modelos rotos
+  List<Map<String, dynamic>> proyectos = [];
   bool cargando = true;
 
   @override
@@ -21,7 +21,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
     _cargarProyectosDeLaNube();
   }
 
-  // ✅ Consulta directa a la nube sin DataStore
+  // Consulta directa a la nube sin DataStore, aun)
   Future<void> _cargarProyectosDeLaNube() async {
     setState(() => cargando = true);
 
