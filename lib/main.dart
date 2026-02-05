@@ -60,4 +60,4 @@ class CapturadorApp extends StatelessWidget {
     );
   }
 }
-// a continuacion la conexion con el amplify pull
+// a continuacion la conexion con el
