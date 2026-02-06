@@ -1,8 +1,8 @@
 // ProyectosMenuScreen.dart
-import 'dart:convert';
-import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
+import 'package:amplify_datastore/amplify_datastore.dart';
+import '../models/Project.dart'; // Asegúrate de que la ruta sea correcta
 
 class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
@@ -12,104 +12,55 @@ class ProyectosMenuScreen extends StatefulWidget {
 }
 
 class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
-  List<Map<String, dynamic>> proyectos = [];
+  List<Project> proyectos = [];
   bool cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _cargarProyectosDeLaNube();
+    _cargarProyectosDesdeDataStore();
   }
 
-  // Consulta directa a la nube sin DataStore, aun)
-  Future<void> _cargarProyectosDeLaNube() async {
-    setState(() => cargando = true);
-
-    const query = r'''
-      query ListProjects {
-        listProjects {
-          items {
-            id
-            name
-            status
-          }
-        }
-      }
-    ''';
-
+  // ✅ Cargar proyectos usando DataStore.observeQuery (sincroniza en tiempo real)
+  Future<void> _cargarProyectosDesdeDataStore() async {
     try {
-      final request = GraphQLRequest<String>(document: query);
-      final response = await Amplify.API.query(request: request).response;
-
-      if (response.errors.isNotEmpty) {
-        safePrint('Errores en consulta: ${response.errors}');
-        setState(() {
-          proyectos = [];
-          cargando = false;
-        });
-        return;
-      }
-
-      final data = response.data;
-      if (data == null) {
-        setState(() {
-          proyectos = [];
-          cargando = false;
-        });
-        return;
-      }
-
-      // Parsear JSON manualmente
-      final jsonData = jsonDecode(data);
-      final items = jsonData['listProjects']['items'] as List<dynamic>;
-
+      // 1. Una consulta inicial rápida para mostrar lo que ya haya localmente
+      final proyectosIniciales = await Amplify.DataStore.query(Project.classType);
       setState(() {
-        proyectos = List<Map<String, dynamic>>.from(items);
-        cargando = false;
+        proyectos = proyectosIniciales;
+        if (proyectos.isNotEmpty) cargando = false;
       });
+
+      // 2. Escuchar cambios (esto atrapará los datos cuando terminen de bajar de la nube)
+      Amplify.DataStore.observeQuery(Project.classType).listen(
+            (snapshot) {
+          if (mounted) {
+            setState(() {
+              proyectos = snapshot.items;
+              cargando = false;
+            });
+          }
+        },
+        onError: (error) => safePrint('❌ Error en observeQuery: $error'),
+      );
     } catch (e) {
-      safePrint('Error en consulta GraphQL: $e');
-      setState(() {
-        proyectos = [];
-        cargando = false;
-      });
+      safePrint('❌ Error al cargar proyectos: $e');
+      if (mounted) setState(() => cargando = false);
     }
   }
 
-  // ✅ Mutación para crear proyecto sin DataStore
+  // ✅ Crear proyecto usando DataStore.save
   Future<void> _crearProyecto(String nombre) async {
-    const mutation = r'''
-      mutation CreateProject($name: String!, $status: String!) {
-        createProject(input: {name: $name, status: $status}) {
-          id
-          name
-          status
-        }
-      }
-    ''';
-
-    final variables = {
-      'name': nombre,
-      'status': 'activo',
-    };
-
     try {
-      final request = GraphQLRequest<String>(
-        document: mutation,
-        variables: variables,
+      final nuevoProyecto = Project(
+        name: nombre,
+        status: 'activo',
       );
-      final response = await Amplify.API.mutate(request: request).response;
 
-      if (response.errors.isNotEmpty) {
-        safePrint('Error en mutación: ${response.errors}');
-        return;
-      }
-
-      safePrint('Proyecto creado: ${response.data}');
-      // Refrescar lista tras crear
-      _cargarProyectosDeLaNube();
+      await Amplify.DataStore.save(nuevoProyecto);
+      safePrint('✅ Proyecto guardado localmente y sincronizando...');
     } catch (e) {
-      safePrint('Error en mutación GraphQL: $e');
+      safePrint('❌ Error al guardar proyecto: $e');
     }
   }
 
@@ -143,7 +94,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _cargarProyectosDeLaNube,
+            onPressed: _cargarProyectosDesdeDataStore,
           ),
         ],
       ),
@@ -167,15 +118,15 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                 final proyecto = proyectos[index];
                 return ListTile(
                   leading: const Icon(Icons.folder),
-                  title: Text(proyecto['name']),
-                  subtitle: Text('ID: ${proyecto['id'].substring(0, 8)}...'),
+                  title: Text(proyecto.name),
+                  subtitle: Text('ID: ${proyecto.id.substring(0, 8)}...'),
                   onTap: () {
                     Navigator.pushNamed(
                       context,
                       '/predios',
                       arguments: {
-                        'proyecto_id': proyecto['id'],
-                        'proyecto_nombre': proyecto['name'],
+                        'proyecto_id': proyecto.id,
+                        'proyecto_nombre': proyecto.name,
                       },
                     );
                   },
