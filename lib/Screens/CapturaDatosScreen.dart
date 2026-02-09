@@ -1,3 +1,4 @@
+// CapturaDatosScreen.dart
 import 'dart:convert';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
@@ -15,123 +16,107 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
   bool cargando = true;
   late String treeId;
   late String treeName;
+  bool _isInitialized = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-    treeId = args['tree_id'];
-    treeName = args['tree_name'];
-    _cargarRawData();
+    if (!_isInitialized) {
+      final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+      treeId = args['tree_id'];
+      treeName = args['tree_name'];
+      _isInitialized = true;
+      _cargarRawData();
+    }
   }
 
   Future<void> _cargarRawData() async {
+    if (!mounted) return;
     setState(() => cargando = true);
 
+    // QUERY LIMPIA: Solo campos que el esquema del Senior confirma
     const query = r'''
-      query ListRawData($filter: ModelRawDataFilterInput) {
-        listRawData(filter: $filter) {
+      query ListRawData {
+        listRawData {
           items {
             id
             name
             valueFloat
             valueString
-            timestamp
+            tree {
+              id
+            }
           }
         }
       }
     ''';
 
     try {
-      final request = GraphQLRequest<String>(
-        document: query,
-        variables: {
-          'filter': {
-            'treeID': {'eq': treeId}
-          }
-        },
-      );
-
+      final request = GraphQLRequest<String>(document: query);
       final response = await Amplify.API.query(request: request).response;
+
+      if (response.hasErrors) {
+        safePrint('❌ Errores de API: ${response.errors}');
+      }
 
       if (response.data != null) {
         final jsonData = jsonDecode(response.data!);
-        final items = jsonData['listRawData']['items'] as List<dynamic>;
-        setState(() {
-          rawDataList = List<Map<String, dynamic>>.from(items);
-          cargando = false;
-        });
-      }
-    } catch (e) {
-      safePrint('Error cargando RawData: $e');
-      setState(() => cargando = false);
-    }
-  }
+        final List<dynamic> allItems = jsonData['listRawData']['items'];
 
-  Future<void> _crearRawData(String nombre, double? valorFloat, String? valorString) async {
-    const mutation = r'''
-      mutation CreateRawData($input: CreateRawDataInput!) {
-        createRawData(input: $input) {
-          id
-          name
-          valueFloat
-          valueString
-          timestamp
+        // 🔍 DIAGNÓSTICO CRÍTICO: Vamos a ver qué campos trae el primer item
+        if (allItems.isNotEmpty) {
+          safePrint('📡 PRIMER ITEM RECIBIDO: ${allItems[0]}');
         }
+
+        // Filtro por el objeto tree
+        final filtrados = allItems.where((item) {
+          final tree = item['tree'];
+          return tree != null && tree['id'] == treeId;
+        }).toList();
+
+        if (mounted) {
+          setState(() {
+            rawDataList = List<Map<String, dynamic>>.from(filtrados);
+            cargando = false;
+          });
+        }
+        safePrint('✅ Total nube: ${allItems.length} | Filtrados: ${filtrados.length}');
+      } else {
+        if (mounted) setState(() => cargando = false);
       }
-    ''';
-
-    final input = {
-      'name': nombre,
-      'valueFloat': valorFloat,
-      'valueString': valorString,
-      'timestamp': DateTime.now().toIso8601String(),
-      'treeID': treeId, // Ajusta según el nombre real del campo
-    };
-
-    try {
-      final request = GraphQLRequest<String>(
-        document: mutation,
-        variables: {'input': input},
-      );
-      await Amplify.API.mutate(request: request).response;
-      _cargarRawData();
     } catch (e) {
-      safePrint('Error creando RawData: $e');
+      safePrint('❌ Error en la petición: $e');
+      if (mounted) setState(() => cargando = false);
     }
   }
-
-  // Aquí puedes agregar UI para mostrar la lista y un formulario para crear nuevos datos
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Datos de $treeName')),
+      appBar: AppBar(title: Text(treeName)),
       body: cargando
           ? const Center(child: CircularProgressIndicator())
+          : rawDataList.isEmpty
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text("No se encontraron datos para este árbol"),
+            const SizedBox(height: 10),
+            Text("ID del Árbol: $treeId", style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            ElevatedButton(onPressed: _cargarRawData, child: const Text("Actualizar"))
+          ],
+        ),
+      )
           : ListView.builder(
         itemCount: rawDataList.length,
         itemBuilder: (context, index) {
           final item = rawDataList[index];
           return ListTile(
             title: Text(item['name'] ?? 'Sin nombre'),
-            subtitle: Text(
-              item['valueFloat'] != null
-                  ? 'Valor: ${item['valueFloat']}'
-                  : 'Valor: ${item['valueString'] ?? 'N/A'}',
-            ),
-            trailing: Text(item['timestamp'] != null
-                ? DateTime.parse(item['timestamp']).toLocal().toString()
-                : ''),
+            subtitle: Text('Valor: ${item['valueFloat'] ?? item['valueString'] ?? 'N/A'}'),
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Aquí muestra un diálogo para crear nuevo RawData
-          // Puedes reutilizar el patrón de diálogo que usamos antes
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }
