@@ -1,8 +1,8 @@
 // ProyectosMenuScreen.dart
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
-import 'package:amplify_datastore/amplify_datastore.dart';
-import '../models/Project.dart'; // Asegúrate de que la ruta sea correcta
+import 'package:amplify_api/amplify_api.dart';
+import 'dart:convert'; // Para procesar el JSON de la API
 
 class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
@@ -12,126 +12,132 @@ class ProyectosMenuScreen extends StatefulWidget {
 }
 
 class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
-  List<Project> proyectos = [];
+  // Usamos una lista de Map para manejar los datos crudos de la API
+  List<dynamic> proyectos = [];
   bool cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _cargarProyectosDesdeDataStore();
+    _cargarDesdeNube(); // Cargamos directo de la nube al entrar
   }
 
-  // ✅ Cargar proyectos usando DataStore.observeQuery (sincroniza en tiempo real)
-  Future<void> _cargarProyectosDesdeDataStore() async {
-    try {
-      // 1. Una consulta inicial rápida para mostrar lo que ya haya localmente
-      final proyectosIniciales = await Amplify.DataStore.query(Project.classType);
-      setState(() {
-        proyectos = proyectosIniciales;
-        if (proyectos.isNotEmpty) cargando = false;
-      });
+  // 🌐 EL MOTOR: Carga datos reales del Senior saltándose DataStore
+  Future<void> _cargarDesdeNube() async {
+    if (!mounted) return;
+    setState(() => cargando = true);
 
-      // 2. Escuchar cambios (esto atrapará los datos cuando terminen de bajar de la nube)
-      Amplify.DataStore.observeQuery(Project.classType).listen(
-            (snapshot) {
-          if (mounted) {
-            setState(() {
-              proyectos = snapshot.items;
-              cargando = false;
-            });
+    try {
+      safePrint('🌐 Conectando con el backend del Senior...');
+
+      String graphQLDocument = '''
+        query ListProjects {
+          listProjects {
+            items {
+              id
+              name
+              status
+            }
           }
-        },
-        onError: (error) => safePrint('❌ Error en observeQuery: $error'),
+        }
+      ''';
+
+      final operation = Amplify.API.query(
+        request: GraphQLRequest<String>(document: graphQLDocument),
       );
+
+      final response = await operation.response;
+      final data = response.data;
+
+      if (data != null) {
+        final Map<String, dynamic> jsonMap = json.decode(data);
+        if (mounted) {
+          setState(() {
+            proyectos = jsonMap['listProjects']['items'];
+            cargando = false;
+          });
+        }
+        safePrint('✅ Se cargaron ${proyectos.length} proyectos del Senior.');
+      }
     } catch (e) {
-      safePrint('❌ Error al cargar proyectos: $e');
+      safePrint('❌ Error cargando de la nube: $e');
       if (mounted) setState(() => cargando = false);
     }
-  }
-
-  // ✅ Crear proyecto usando DataStore.save
-  Future<void> _crearProyecto(String nombre) async {
-    try {
-      final nuevoProyecto = Project(
-        name: nombre,
-        status: 'activo',
-      );
-
-      await Amplify.DataStore.save(nuevoProyecto);
-      safePrint('✅ Proyecto guardado localmente y sincronizando...');
-    } catch (e) {
-      safePrint('❌ Error al guardar proyecto: $e');
-    }
-  }
-
-  Future<void> _nuevoProyecto(BuildContext context) async {
-    final controller = TextEditingController();
-    final nombre = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Nuevo proyecto'),
-        content: TextField(controller: controller),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-    if (nombre != null && nombre.isNotEmpty) await _crearProyecto(nombre);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Menú Proyectos'),
+        title: const Text('Proyectos del Senior'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _cargarProyectosDesdeDataStore,
+            icon: const Icon(Icons.cloud_download),
+            onPressed: _cargarDesdeNube,
+            tooltip: 'Forzar recarga de nube',
           ),
         ],
       ),
       body: Column(
         children: [
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.add),
-            label: const Text('Nuevo proyecto'),
-            onPressed: () => _nuevoProyecto(context),
+          Container(
+            width: double.infinity,
+            color: Colors.blue.shade50,
+            padding: const EdgeInsets.all(8),
+            child: const Text(
+              "Conectado directamente a la API (Bypass DataStore)",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue),
+            ),
           ),
-          const Divider(),
           Expanded(
             child: cargando
                 ? const Center(child: CircularProgressIndicator())
                 : proyectos.isEmpty
-                ? const Center(child: Text('No hay proyectos'))
-                : ListView.builder(
-              itemCount: proyectos.length,
-              itemBuilder: (context, index) {
-                final proyecto = proyectos[index];
-                return ListTile(
-                  leading: const Icon(Icons.folder),
-                  title: Text(proyecto.name),
-                  subtitle: Text('ID: ${proyecto.id.substring(0, 8)}...'),
-                  onTap: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/predios',
-                      arguments: {
-                        'proyecto_id': proyecto.id,
-                        'proyecto_nombre': proyecto.name,
+                ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('No se encontraron proyectos en la nube.'),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _cargarDesdeNube,
+                    child: const Text('Reintentar conexión'),
+                  )
+                ],
+              ),
+            )
+                : RefreshIndicator(
+              onRefresh: _cargarDesdeNube,
+              child: ListView.builder(
+                itemCount: proyectos.length,
+                itemBuilder: (context, index) {
+                  final proyecto = proyectos[index];
+                  return Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    child: ListTile(
+                      leading: const Icon(Icons.account_tree, color: Colors.green),
+                      title: Text(
+                        proyecto['name'] ?? 'Sin nombre',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text('ID: ${proyecto['id'].toString().substring(0, 8)}...'),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        // Navegamos a Predios pasando los datos del Senior
+                        Navigator.pushNamed(
+                          context,
+                          '/predios',
+                          arguments: {
+                            'proyecto_id': proyecto['id'],
+                            'proyecto_nombre': proyecto['name'],
+                          },
+                        );
                       },
-                    );
-                  },
-                );
-              },
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ],
