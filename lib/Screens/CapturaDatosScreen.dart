@@ -34,17 +34,25 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
     if (!mounted) return;
     setState(() => cargando = true);
 
-    // QUERY LIMPIA: Solo campos que el esquema del Senior confirma
     const query = r'''
       query ListRawData {
-        listRawData {
+        listRawData(limit: 1000) {
           items {
             id
             name
             valueFloat
             valueString
+            start_date
             tree {
               id
+            }
+            feature {
+              id
+              name
+              unitOfMeasure {
+                id
+                engineering_unit
+              }
             }
           }
         }
@@ -55,20 +63,10 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
       final request = GraphQLRequest<String>(document: query);
       final response = await Amplify.API.query(request: request).response;
 
-      if (response.hasErrors) {
-        safePrint('❌ Errores de API: ${response.errors}');
-      }
-
       if (response.data != null) {
         final jsonData = jsonDecode(response.data!);
         final List<dynamic> allItems = jsonData['listRawData']['items'];
 
-        // 🔍 DIAGNÓSTICO CRÍTICO: Vamos a ver qué campos trae el primer item
-        if (allItems.isNotEmpty) {
-          safePrint('📡 PRIMER ITEM RECIBIDO: ${allItems[0]}');
-        }
-
-        // Filtro por el objeto tree
         final filtrados = allItems.where((item) {
           final tree = item['tree'];
           return tree != null && tree['id'] == treeId;
@@ -80,12 +78,10 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
             cargando = false;
           });
         }
-        safePrint('✅ Total nube: ${allItems.length} | Filtrados: ${filtrados.length}');
-      } else {
-        if (mounted) setState(() => cargando = false);
+        debugPrint('✅ Recibidos: ${allItems.length} | Filtrados: ${filtrados.length}');
       }
     } catch (e) {
-      safePrint('❌ Error en la petición: $e');
+      debugPrint('❌ Error: $e');
       if (mounted) setState(() => cargando = false);
     }
   }
@@ -93,7 +89,12 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(treeName)),
+      appBar: AppBar(
+        title: Text(treeName),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _cargarRawData)
+        ],
+      ),
       body: cargando
           ? const Center(child: CircularProgressIndicator())
           : rawDataList.isEmpty
@@ -101,10 +102,10 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text("No se encontraron datos para este árbol"),
+            const Icon(Icons.search_off, size: 60, color: Colors.grey),
             const SizedBox(height: 10),
-            Text("ID del Árbol: $treeId", style: const TextStyle(fontSize: 10, color: Colors.grey)),
-            ElevatedButton(onPressed: _cargarRawData, child: const Text("Actualizar"))
+            Text("No hay mediciones registradas para $treeName"),
+            Text("ID: $treeId", style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ],
         ),
       )
@@ -112,12 +113,29 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
         itemCount: rawDataList.length,
         itemBuilder: (context, index) {
           final item = rawDataList[index];
-          return ListTile(
-            title: Text(item['name'] ?? 'Sin nombre'),
-            subtitle: Text('Valor: ${item['valueFloat'] ?? item['valueString'] ?? 'N/A'}'),
+
+          final feature = item['feature'];
+          final unit = feature?['unitOfMeasure']?['engineering_unit'] ?? '';
+          final featureName = feature?['name'] ?? 'Sin nombre';
+          final valor = item['valueFloat']?.toString() ?? item['valueString'] ?? 'N/A';
+
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+            elevation: 2,
+            child: ListTile(
+              leading: const CircleAvatar(child: Icon(Icons.science)),
+              title: Text(featureName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('$valor $unit'),
+              trailing: item['start_date'] != null
+                  ? Text(
+                DateTime.parse(item['start_date']).toLocal().toString().split(' ')[0],
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              )
+                  : null,
+            ),
           );
         },
       ),
     );
   }
-}//a
+}
