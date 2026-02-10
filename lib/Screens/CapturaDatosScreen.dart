@@ -120,4 +120,4 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
       ),
     );
   }
-}
+}//a
