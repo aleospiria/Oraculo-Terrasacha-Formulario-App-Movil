@@ -36,23 +36,14 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
 
     const query = r'''
       query ListRawData {
-        listRawData(limit: 1000) {
+        listRawData(limit: 500) {
           items {
             id
             name
             valueFloat
             valueString
-            start_date
             tree {
               id
-            }
-            feature {
-              id
-              name
-              unitOfMeasure {
-                id
-                engineering_unit
-              }
             }
           }
         }
@@ -67,6 +58,11 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
         final jsonData = jsonDecode(response.data!);
         final List<dynamic> allItems = jsonData['listRawData']['items'];
 
+        // Mostrar primer item para depurar
+        if (allItems.isNotEmpty) {
+          debugPrint('📡 DEBUG: Primer item recibido: ${allItems[0]}');
+        }
+
         final filtrados = allItems.where((item) {
           final tree = item['tree'];
           return tree != null && tree['id'] == treeId;
@@ -78,10 +74,14 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
             cargando = false;
           });
         }
-        debugPrint('✅ Recibidos: ${allItems.length} | Filtrados: ${filtrados.length}');
+
+        debugPrint('✅ Total recibidos: ${allItems.length} | Filtrados para este árbol: ${filtrados.length}');
+      } else {
+        debugPrint('⚠️ Sin datos en la respuesta');
+        if (mounted) setState(() => cargando = false);
       }
-    } catch (e) {
-      debugPrint('❌ Error: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error al cargar datos: $e\nStack trace: $stackTrace');
       if (mounted) setState(() => cargando = false);
     }
   }
@@ -114,24 +114,17 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
         itemBuilder: (context, index) {
           final item = rawDataList[index];
 
-          final feature = item['feature'];
-          final unit = feature?['unitOfMeasure']?['engineering_unit'] ?? '';
-          final featureName = feature?['name'] ?? 'Sin nombre';
-          final valor = item['valueFloat']?.toString() ?? item['valueString'] ?? 'N/A';
+          final String nombre = item['name'] ?? 'Medición sin nombre';
+          final String valor =
+              item['valueFloat']?.toString() ?? item['valueString'] ?? 'Sin valor';
 
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
             elevation: 2,
             child: ListTile(
               leading: const CircleAvatar(child: Icon(Icons.science)),
-              title: Text(featureName, style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text('$valor $unit'),
-              trailing: item['start_date'] != null
-                  ? Text(
-                DateTime.parse(item['start_date']).toLocal().toString().split(' ')[0],
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
-              )
-                  : null,
+              title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('Valor: $valor'),
             ),
           );
         },
