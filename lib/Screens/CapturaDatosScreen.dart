@@ -36,14 +36,25 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
 
     const query = r'''
       query ListRawData {
-        listRawData(limit: 500) {
+        listRawData(limit: 1000) {
           items {
             id
             name
             valueFloat
             valueString
+            start_date
             tree {
               id
+              name
+            }
+            feature {
+              id
+              name
+              unitOfMeasure {
+                id
+                name
+                abbreviation
+              }
             }
           }
         }
