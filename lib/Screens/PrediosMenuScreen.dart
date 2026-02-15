@@ -26,7 +26,6 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
     _cargarDatosDeLaNube();
   }
 
-  // ✅ Consulta filtrada por Proyecto
   Future<void> _cargarDatosDeLaNube() async {
     setState(() => cargando = true);
 
