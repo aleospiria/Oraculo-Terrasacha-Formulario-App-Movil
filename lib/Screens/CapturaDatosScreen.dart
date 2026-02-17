@@ -1,4 +1,4 @@
-// CapturaDatosScreen.dart
+
 import 'dart:convert';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
@@ -60,7 +60,7 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
         }
       }
     ''';
-
+          //Query final pero que no arroja datos
     try {
       final request = GraphQLRequest<String>(document: query);
       final response = await Amplify.API.query(request: request).response;
@@ -71,7 +71,7 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
 
         // Mostrar primer item para depurar
         if (allItems.isNotEmpty) {
-          debugPrint('📡 DEBUG: Primer item recibido: ${allItems[0]}');
+          debugPrint('📡 Primer item recibido: ${allItems[0]}');
         }
 
         final filtrados = allItems.where((item) {
