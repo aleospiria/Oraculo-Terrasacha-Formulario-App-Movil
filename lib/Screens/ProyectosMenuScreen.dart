@@ -12,23 +12,21 @@ class ProyectosMenuScreen extends StatefulWidget {
 }
 
 class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
-  // Usamos una lista de Map para manejar los datos crudos de la API
   List<dynamic> proyectos = [];
   bool cargando = true;
 
   @override
   void initState() {
     super.initState();
-    _cargarDesdeNube(); // Cargamos directo de la nube al entrar
+    _cargarDesdeNube();
   }
 
-  // 🌐 EL MOTOR: Carga datos reales del Senior saltándose DataStore
   Future<void> _cargarDesdeNube() async {
     if (!mounted) return;
     setState(() => cargando = true);
 
     try {
-      safePrint('🌐 Conectando con el backend del Senior...');
+      safePrint('🌐 Conectando con el backend...');
 
       String graphQLDocument = '''
         query ListProjects {
@@ -57,7 +55,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
             cargando = false;
           });
         }
-        safePrint('✅ Se cargaron ${proyectos.length} proyectos del Senior.');
+        safePrint('✅ Se cargaron ${proyectos.length} proyectos.');
       }
     } catch (e) {
       safePrint('❌ Error cargando de la nube: $e');
@@ -69,7 +67,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Proyectos del Senior'),
+        title: const Text('Proyectos'),
         actions: [
           IconButton(
             icon: const Icon(Icons.cloud_download),
@@ -124,7 +122,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                       subtitle: Text('ID: ${proyecto['id'].toString().substring(0, 8)}...'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // Navegamos a Predios pasando los datos del Senior
+                        // Navegamos a Predios pasando los datos.
                         Navigator.pushNamed(
                           context,
                           '/predios',

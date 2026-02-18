@@ -47,7 +47,7 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
         document: query,
         variables: {
           'filter': {
-            'projectTreesId': {'eq': proyectoId} // Ajusta este nombre según tu esquema generado
+            'projectTreesId': {'eq': proyectoId}
           }
         },
       );
@@ -86,12 +86,12 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
           'input': {
             'name': nombre,
             'status': 'Pendiente',
-            'projectTreesId': proyectoId // Vinculación vital
+            'projectTreesId': proyectoId
           }
         },
       );
       await Amplify.API.mutate(request: request).response;
-      _cargarDatosDeLaNube(); // Refrescar
+      _cargarDatosDeLaNube();
     } catch (e) {
       safePrint('Error creando predio: $e');
     }
@@ -124,7 +124,6 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
                   leading: const Icon(Icons.location_on),
                   title: Text(item['name']),
                   onTap: () {
-                    // Siguiente nivel: Captura de datos
                     Navigator.pushNamed(context, '/captura', arguments: {
                       'tree_id': item['id'],
                       'tree_name': item['name'],
