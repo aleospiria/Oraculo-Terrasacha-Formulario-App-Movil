@@ -42,20 +42,6 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
             name
             valueFloat
             valueString
-            start_date
-            tree {
-              id
-              name
-            }
-            feature {
-              id
-              name
-              unitOfMeasure {
-                id
-                name
-                abbreviation
-              }
-            }
           }
         }
       }
