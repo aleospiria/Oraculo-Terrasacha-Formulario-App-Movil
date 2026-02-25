@@ -46,7 +46,7 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
         }
       }
     ''';
-          //Query final pero que no arroja datos
+          //Se debe arreglar filtro de consulta
     try {
       final request = GraphQLRequest<String>(document: query);
       final response = await Amplify.API.query(request: request).response;
