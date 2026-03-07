@@ -46,7 +46,7 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
         }
       }
     ''';
-          //Se debe arreglar filtro de consulta
+          //Pruebas realizadas en postman
     try {
       final request = GraphQLRequest<String>(document: query);
       final response = await Amplify.API.query(request: request).response;
