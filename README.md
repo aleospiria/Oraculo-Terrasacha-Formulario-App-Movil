@@ -1,3 +1,5 @@
+# Hay que actualizar el README.md
+
 # Oráculo Terrasacha – Formulario App Móvil
 
 ## 🎯 Objetivo de la App
@@ -27,7 +29,7 @@ Desarrollar un nuevo proyecto en **Flutter (multiplataforma)** para crear una he
 Por completar. Actualmente se contemplan los siguientes componentes:
 
 ### 📱 Cliente
-
+44 
 Corresponde a todo lo que ve y usa el usuario en el dispositivo móvil:
 
 - Peticiones
