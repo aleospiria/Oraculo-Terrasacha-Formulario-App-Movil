@@ -116,6 +116,7 @@ flutter build apk --release
 
 ## Estructura del Proyecto
 
+```
 terrasacha/
 ├── lib/
 │ ├── models/ # Modelos de datos (Predio, Parcela, etc.)
@@ -129,3 +130,4 @@ terrasacha/
 ├── pubspec.yaml # Dependencias y assets
 ├── README.md # Instrucciones generales (este archivo)
 └── DOCUMENTACION.md # Documentación técnica
+```
