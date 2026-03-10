@@ -12,7 +12,6 @@ Este proyecto es una aplicación móvil desarrollada en Flutter para la captura 
 - [Configuración del Proyecto](#configuración-del-proyecto)
 - [Ejecución](#ejecución)
 - [Estructura del Proyecto](#estructura-del-proyecto)
-- [Contribuciones](#contribuciones)
 - [Documentación Técnica](#documentación-técnica)
 
 ---
@@ -96,7 +95,7 @@ Obtén las dependencias:
 ```bash
 flutter pub get
 ```
-(Opcional) Genera código adicional si usas build_runner:
+(Opcional) Genera código adicional si se usa build_runner:
 
 ```bash
 flutter pub run build_runner build
@@ -116,17 +115,17 @@ flutter build apk --release
 ```
 
 ## Estructura del Proyecto
-/lib: Código fuente Flutter (pantallas, modelos, utilidades)
-/android y /ios: Configuración nativa para cada plataforma
-/assets: Recursos estáticos (imágenes, fuentes)
-README.md: Instrucciones generales
-DOCUMENTACION.md: Documentación técnica y científica del proyecto
-Contribuciones
-Si deseas contribuir:
 
-Crea una rama para tu feature:
-bash
-Copy
-git checkout -b feature/nombre-feature
-Asegúrate que el código compile y pase pruebas.
-Envía un Pull Request con descripción clara.
+terrasacha/
+├── lib/
+│ ├── models/ # Modelos de datos (Predio, Parcela, etc.)
+│ ├── screens/ # Pantallas (Formulario, Historial, Menús)
+│ ├── db/ # Helper de SQLite / Data access
+│ ├── amplifyconfiguration.dart # Configuracion de amplify
+│ └── main.dart # Punto de entrada de la app
+├── android/ # Configuración nativa Android
+├── ios/ # Configuración nativa iOS
+├── assets/ # Recursos estáticos (imágenes, fuentes)
+├── pubspec.yaml # Dependencias y assets
+├── README.md # Instrucciones generales (este archivo)
+└── DOCUMENTACION.md # Documentación técnica
