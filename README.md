@@ -113,6 +113,23 @@ Obtén las dependencias:
 ```bash
 flutter pub get
 ```
+## Configurar Amplify (por primera vez, una vez por máquina)
+
+Si nunca se a configurado amplify en la maquina actual, se debe configurar:
+
+```bash
+amplify configure
+```
+
+Crear usuario o iniciar sesion con las credenciales (Access key y Secret access key) si ya se tiene.
+
+## Traer el backend existente
+
+Se ejecuta un pull para traer archivos como el **amplifyconfiguratio.dart**:
+
+```bash
+amplify pull
+```
 
 ## Ejecución
 
