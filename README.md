@@ -29,6 +29,8 @@ Terrasacha es una app multiplataforma (Android/iOS) que permite registrar datos 
 - Java JDK (17 o superior)
 - Android SDK
 - Dispositivo o emulador Android/iOS
+- Amplify CLI
+- Cuenta AWS
 
 ---
 
@@ -76,18 +78,34 @@ flutter doctor
 
 Este comando te indicará si tienes todo configurado correctamente.
 
-## Configuración del Proyecto
+## Instalación de Amplify CLI
 
-Clona este repositorio:
+Amplify CLI es la herramienta que permite configurar y desplegar los servicios backend utilizados por la aplicación.
+
+### Instalar Amplify CLI
+
+Se instala usando npm:
 
 ```bash
-git clone https://github.com/tu-usuario/terrasacha.git
+npm install -g @aws-amplify/cli
+```
+Verificar instalación:
+```bash
+amplify --version
+```
+
+## Configuración del Proyecto
+
+Clonar este repositorio:
+
+```bash
+git clone https://github.com/aleospiria/Oraculo-Terrasacha-Formulario-App-Movil
 ```
 
 Entra a la carpeta del proyecto:
 
 ```bash
-cd terrasacha
+cd Oraculo-Terrasacha-Formulario-App-Movil
 ```
 
 Obtén las dependencias:
@@ -95,11 +113,7 @@ Obtén las dependencias:
 ```bash
 flutter pub get
 ```
-(Opcional) Genera código adicional si se usa build_runner:
 
-```bash
-flutter pub run build_runner build
-```
 ## Ejecución
 
 Para correr en modo debug(pruebas):
