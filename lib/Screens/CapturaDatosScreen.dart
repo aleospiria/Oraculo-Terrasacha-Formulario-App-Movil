@@ -35,44 +35,55 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
     setState(() => cargando = true);
 
     const query = r'''
-      query ListRawData {
-        listRawData(limit: 1000) {
-          items {
-            id
-            name
-            valueFloat
-            valueString
+      query GetTreeRawData($id: ID!) {
+        getTree(id: $id) {
+          id
+          name
+          rawData {
+            items {
+              id
+              name
+              valueFloat
+              valueString
+              start_date
+              end_date
+              createdAt
+            }
           }
         }
       }
     ''';
-          //Pruebas realizadas en postman
+
     try {
-      final request = GraphQLRequest<String>(document: query);
+      final request = GraphQLRequest<String>(
+        document: query,
+        variables: {"id": treeId},
+      );
       final response = await Amplify.API.query(request: request).response;
 
       if (response.data != null) {
         final jsonData = jsonDecode(response.data!);
-        final List<dynamic> allItems = jsonData['listRawData']['items'];
 
-        // Mostrar primer item para depurar
-        if (allItems.isNotEmpty) {
-          debugPrint('📡 Primer item recibido: ${allItems[0]}');
+        // Verificamos que getTree no sea nulo
+        if (jsonData['getTree'] != null) {
+          final List<dynamic> allItems = jsonData['getTree']['rawData']['items'];
+
+          if (allItems.isNotEmpty) {
+            debugPrint('📡 Primer item recibido: ${allItems[0]}');
+          }
+
+          if (mounted) {
+            setState(() {
+              // ✅ ASIGNACIÓN DIRECTA: Ya vienen filtrados por el ID desde la nube
+              rawDataList = List<Map<String, dynamic>>.from(allItems);
+              cargando = false;
+            });
+          }
+          debugPrint('✅ Total visualizados: ${allItems.length}');
+        } else {
+          debugPrint('⚠️ El árbol con ID $treeId no existe en la base de datos');
+          if (mounted) setState(() => cargando = false);
         }
-
-        final filtrados = allItems.where((item) {
-          final tree = item['tree'];
-          return tree != null && tree['id'] == treeId;
-        }).toList();
-
-        if (mounted) {
-          setState(() {
-            rawDataList = List<Map<String, dynamic>>.from(filtrados);
-            cargando = false;
-          });
-        }
-
-        debugPrint('✅ Total recibidos: ${allItems.length} | Filtrados para este árbol: ${filtrados.length}');
       } else {
         debugPrint('⚠️ Sin datos en la respuesta');
         if (mounted) setState(() => cargando = false);
