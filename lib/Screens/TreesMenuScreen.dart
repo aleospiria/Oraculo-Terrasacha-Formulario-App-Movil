@@ -3,14 +3,14 @@ import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 
-class PrediosMenuScreen extends StatefulWidget {
-  const PrediosMenuScreen({super.key});
+class TreesMenuScreen extends StatefulWidget {
+  const TreesMenuScreen({super.key});
 
   @override
-  State<PrediosMenuScreen> createState() => _PrediosMenuScreenState();
+  State<TreesMenuScreen> createState() => _TreesMenuScreenState();
 }
 
-class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
+class _TreesMenuScreenState extends State<TreesMenuScreen> {
   List<Map<String, dynamic>> items = [];
   bool cargando = true;
   late String proyectoId;
@@ -29,7 +29,7 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
   Future<void> _cargarDatosDeLaNube() async {
     setState(() => cargando = true);
 
-    // Query que busca los Trees (Predios) filtrando por el ID del proyecto
+    // Query que busca los Trees filtrando por el ID del proyecto
     const query = r'''
       query ListTrees($filter: ModelTreeFilterInput) {
         listTrees(filter: $filter) {
@@ -63,7 +63,7 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
         });
       }
     } catch (e) {
-      safePrint('Error cargando predios: $e');
+      safePrint('Error cargando Trees: $e');
       setState(() => cargando = false);
     }
   }
@@ -100,14 +100,14 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Predios: $proyectoNombre')),
+      appBar: AppBar(title: Text('Trees: $proyectoNombre')),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton.icon(
               icon: const Icon(Icons.add),
-              label: const Text('Nuevo Predio'),
+              label: const Text('Nuevo Tree'),
               onPressed: () => _mostrarDialogoNuevo(context),
             ),
           ),
@@ -115,7 +115,7 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
             child: cargando
                 ? const Center(child: CircularProgressIndicator())
                 : items.isEmpty
-                ? const Center(child: Text('No hay predios en este proyecto'))
+                ? const Center(child: Text('No hay Trees en este proyecto'))
                 : ListView.builder(
               itemCount: items.length,
               itemBuilder: (context, index) {

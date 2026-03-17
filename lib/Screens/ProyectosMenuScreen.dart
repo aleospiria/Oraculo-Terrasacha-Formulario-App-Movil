@@ -122,10 +122,10 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                       subtitle: Text('ID: ${proyecto['id'].toString().substring(0, 8)}...'),
                       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                       onTap: () {
-                        // Navegamos a Predios pasando los datos.
+                        // Navegamos a Trees pasando los datos.
                         Navigator.pushNamed(
                           context,
-                          '/predios',
+                          '/trees',
                           arguments: {
                             'proyecto_id': proyecto['id'],
                             'proyecto_nombre': proyecto['name'],

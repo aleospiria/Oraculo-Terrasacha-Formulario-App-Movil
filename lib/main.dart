@@ -8,7 +8,7 @@ import 'models/ModelProvider.dart';
 import 'Screens/CapturaDatosScreen.dart';
 import 'Screens/ParcelasMenuScreen.dart';
 import 'Screens/ProyectosMenuScreen.dart';
-import 'Screens/PrediosMenuScreen.dart';
+import 'Screens/TreesMenuScreen.dart';
 import 'Screens/SincronizacionScreen.dart';
 import 'Screens/RevisionScreen.dart';
 import 'Screens/RegistrosGuardadosScreen.dart';
@@ -51,7 +51,7 @@ class CapturadorApp extends StatelessWidget {
       initialRoute: '/proyectos',
       routes: {
         '/proyectos': (context) => const ProyectosMenuScreen(),
-        '/predios': (context) => const PrediosMenuScreen(),
+        '/trees': (context) => const TreesMenuScreen(),
         '/parcelas': (context) => const ParcelasMenuScreen(),
         '/captura': (context) => const CapturaDatosScreen(),
         '/sincronizacion': (context) => const SincronizacionScreen(),
