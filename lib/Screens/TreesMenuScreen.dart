@@ -50,7 +50,6 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
     }
   }
 
-  // ✅ CAMBIO: carga normal SIN filtro de texto, solo paginación
   Future<void> _cargarDatosDeLaNube({String? token}) async {
     if (!mounted) return;
     setState(() => cargando = true);
@@ -71,14 +70,13 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
     ''';
 
     try {
-      // ✅ CAMBIO: filtro limpio, solo por proyecto, sin texto
       final Map<String, dynamic> filter = {
         'projectTreesId': {'eq': proyectoId}
       };
 
       final variables = {
         'filter': filter,
-        'limit': _limit,                          // ✅ CAMBIO: siempre 100, nunca 3000
+        'limit': _limit,
         if (token != null) 'nextToken': token,
       };
 
