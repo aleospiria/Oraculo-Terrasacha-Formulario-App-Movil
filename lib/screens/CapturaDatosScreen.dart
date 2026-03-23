@@ -74,7 +74,6 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
 
           if (mounted) {
             setState(() {
-              // ✅ ASIGNACIÓN DIRECTA: Ya vienen filtrados por el ID desde la nube
               rawDataList = List<Map<String, dynamic>>.from(allItems);
               cargando = false;
             });

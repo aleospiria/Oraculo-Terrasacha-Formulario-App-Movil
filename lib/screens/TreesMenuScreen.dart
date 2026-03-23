@@ -42,7 +42,10 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isInitialized) {
-      final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+      final args = ModalRoute
+          .of(context)!
+          .settings
+          .arguments as Map<String, dynamic>;
       proyectoId = args['proyecto_id'];
       proyectoNombre = args['proyecto_nombre'];
       _isInitialized = true;
@@ -50,6 +53,7 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
     }
   }
 
+  // ✅ CAMBIO: carga normal SIN filtro de texto, solo paginación
   Future<void> _cargarDatosDeLaNube({String? token}) async {
     if (!mounted) return;
     setState(() => cargando = true);
@@ -70,13 +74,15 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
     ''';
 
     try {
+      // ✅ CAMBIO: filtro limpio, solo por proyecto, sin texto
       final Map<String, dynamic> filter = {
         'projectTreesId': {'eq': proyectoId}
       };
 
+
       final variables = {
         'filter': filter,
-        'limit': _limit,
+        'limit': _limit, // ✅ CAMBIO: siempre 100, nunca 3000
         if (token != null) 'nextToken': token,
       };
 
@@ -85,7 +91,9 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
         variables: variables,
       );
 
-      final response = await Amplify.API.query(request: request).response;
+      final response = await Amplify.API
+          .query(request: request)
+          .response;
 
       if (response.data != null) {
         final jsonData = jsonDecode(response.data!);
@@ -149,7 +157,9 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
           variables: variables,
         );
 
-        final response = await Amplify.API.query(request: request).response;
+        final response = await Amplify.API
+            .query(request: request)
+            .response;
         if (response.data == null) break;
 
         final jsonData = jsonDecode(response.data!);
@@ -160,18 +170,19 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
         tokenActual = nextToken;
         paginasRevisadas++;
 
-        // ✅ NUEVO: muestra resultados parciales mientras sigue buscando
+        /*  muestra resultados mientras sigue buscando en caso de que hayan mas (Uno puede
+            estar entre los primeros registros y otro entre los ultimos)
+         */
         if (resultados.isNotEmpty && mounted) {
           setState(() {
             items = resultados;
-            _nextToken = null; // En búsqueda, desactivamos paginación manual
+            _nextToken = null;
             cargando = false;
           });
         }
 
-        // ✅ NUEVO: pausa de 100ms para no saturar AppSync
+        // pausa de 100ms para no saturar AppSync
         await Future.delayed(const Duration(milliseconds: 100));
-
       } while (tokenActual != null && paginasRevisadas < maxPaginas && mounted);
 
       // Resultado final consolidado
@@ -183,8 +194,8 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
         });
       }
 
-      debugPrint('🔍 Búsqueda: ${resultados.length} resultados en $paginasRevisadas páginas');
-
+      debugPrint('🔍 Búsqueda: ${resultados
+          .length} resultados en $paginasRevisadas páginas');
     } catch (e) {
       debugPrint('Error en búsqueda: $e');
       if (mounted) setState(() => cargando = false);
@@ -194,21 +205,28 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
   // ✅ CAMBIO: debounce ahora decide entre modo normal y modo búsqueda
   void _onSearchChanged(String value) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 600), () {  // ✅ 600ms en vez de 500ms
-      if (!mounted) return;
+    _debounce =
+        Timer(const Duration(milliseconds: 600), () { // ✅ 600ms en vez de 500ms
+          if (!mounted) return;
 
-      if (value.trim().isEmpty) {
-        // ✅ CAMBIO: al borrar, vuelve a paginación normal desde página 1
-        _enModoBusqueda = false;
-        _paginaActual = 0;
-        _tokenHistory..clear()..add(null);
-        _cargarDatosDeLaNube();
-      } else if (value.trim().length >= 2) {
-        // ✅ NUEVO: mínimo 2 caracteres para activar búsqueda
-        _enModoBusqueda = true;
-        _buscarEnTodasLasPaginas(value.trim());
-      }
-    });
+          if (value
+              .trim()
+              .isEmpty) {
+            // ✅ CAMBIO: al borrar, vuelve a paginación normal desde página 1
+            _enModoBusqueda = false;
+            _paginaActual = 0;
+            _tokenHistory
+              ..clear()
+              ..add(null);
+            _cargarDatosDeLaNube();
+          } else if (value
+              .trim()
+              .length >= 2) {
+            // ✅ NUEVO: mínimo 2 caracteres para activar búsqueda
+            _enModoBusqueda = true;
+            _buscarEnTodasLasPaginas(value.trim());
+          }
+        });
   }
 
   void _irSiguientePagina() {
@@ -250,12 +268,17 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
           }
         },
       );
-      await Amplify.API.mutate(request: request).response;
+      await Amplify.API
+          .mutate(request: request)
+          .response;
+
 
       _searchController.clear();
-      _enModoBusqueda = false;           // ✅ NUEVO: salir de modo búsqueda al crear
+      _enModoBusqueda = false; // ✅ NUEVO: salir de modo búsqueda al crear
       _paginaActual = 0;
-      _tokenHistory..clear()..add(null);
+      _tokenHistory
+        ..clear()
+        ..add(null);
       _cargarDatosDeLaNube();
     } catch (e) {
       debugPrint('Error creando Tree: $e');
@@ -279,7 +302,11 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
               decoration: const BoxDecoration(
                 color: Colors.white,
                 boxShadow: [
-                  BoxShadow(blurRadius: 8, color: Colors.black12, offset: Offset(0, 2))
+                  BoxShadow(blurRadius: 8,
+                      color: Colors.black12,
+                      offset: Offset(0, 2))
+
+
                 ],
               ),
               child: Row(
@@ -287,7 +314,10 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
                 children: [
                   Text(
                     proyectoNombre,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold),
+
+
                   ),
                   const Icon(Icons.notifications_none),
                 ],
@@ -332,8 +362,13 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
                 children: [
                   // ✅ NUEVO: título cambia según el modo
                   Text(
-                    _enModoBusqueda ? "Resultados (${items.length})" : "Active Forest",
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    _enModoBusqueda
+                        ? "Resultados (${items.length})"
+                        : "Active Forest",
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.bold),
+
+
                   ),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
@@ -342,7 +377,9 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 10),
+
                     ),
                     onPressed: () => _mostrarDialogoNuevo(context),
                     icon: const Icon(Icons.add, size: 18),
@@ -369,7 +406,9 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
                   : ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
+
                   ...items.map((tree) => _buildTreeCard(tree, primary)),
+
                   const SizedBox(height: 20),
 
                   // ✅ CAMBIO: "Cargar más" solo aparece en modo normal, no en búsqueda
@@ -385,7 +424,9 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
                         ),
                         onPressed: _irSiguientePagina,
                         child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 12),
+
                           child: Text(
                             "Cargar más",
                             style: TextStyle(fontWeight: FontWeight.bold),
@@ -438,15 +479,20 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   tree['name'] ?? "Tree",
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(20),
@@ -462,16 +508,22 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
                 ),
               ],
             ),
+
             const SizedBox(height: 6),
+
             Text(
               "ID: ${tree['id'].toString().substring(0, 8)}...",
               style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
+
             const SizedBox(height: 16),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text("Estado", style: TextStyle(fontSize: 12)),
+
+
                 Text(
                   "${(health * 100).toInt()}%",
                   style: TextStyle(
@@ -482,7 +534,9 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
                 ),
               ],
             ),
+
             const SizedBox(height: 6),
+
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: LinearProgressIndicator(
@@ -502,20 +556,21 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
     final controller = TextEditingController();
     final nombre = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Nombre del Tree'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
+      builder: (ctx) =>
+          AlertDialog(
+            title: const Text('Nombre del Tree'),
+            content: TextField(controller: controller, autofocus: true),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, controller.text),
+                child: const Text('Guardar'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
     );
     if (nombre != null && nombre.isNotEmpty) _crearItem(nombre);
   }
