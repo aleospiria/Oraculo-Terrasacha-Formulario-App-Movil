@@ -291,7 +291,15 @@ El diagrama se divide en dos flujos:
 
 ---
 
-## Avances del Proyecto (v0.5.0 - 01/02/2026)
+## Avances del Proyecto (v0.5.0 - 10/02/2026)
+
+- Implementacion del modelo de base de datos que tendra el proyecto, desplegada ya en un backend en la nube.
+
+
+   <div align="center">
+      <img src="docs/v0,5,0/image.png" alt="1" width="90%" />
+   </div>
+
 
 - Conversion de pantallas, pasando de Stateless (Inmutable) a StatefulWidget (Mutable segun eventos, en este caso, alguna actualizacion en los datos para que se refleje en tiempo real)
 - Resolucion de conflictos (No se pudieron seguir posponiendo porque ya no dejaban correr la app) en cuanto al Context que no es un subtipo de BuildContext, dado que ya no se estaban usando valores de pruebas, si no que se estaban obteniendo ya valores existentes.
@@ -330,3 +338,21 @@ El diagrama se divide en dos flujos:
    > Screen CapturaDatosScreen cargando indefinidamente
 
 ---
+
+## Avances del proyecto (v0.6.0 - 01/03/2026)
+
+- Se hicieron pruebas en Postman con el endpoint GraphQL para hacer Mutations y crear nuevos Trees
+- Se refactorizo el nombre de la clase **PrediosMenuScreen** a **TreesMenuScreen**
+- Cambios en la interfaz TreesMenuScreen, creando nuevos componentes para integrar futuras funciones:
+
+  <div align="center">
+      <img src="docs/v0,6,0/TreesFiltroBusqueda.jpeg" alt="6" width="300" />
+   </div>
+
+   > Screen TreesMenuScreen con nuevos componentes
+
+   * Una barra de busqueda
+   * Botones **Siguiente** y **Anterior** (Paginacion)
+   * Boton para creacion del Tree
+   * Cambio en el icono que tienen los Trees
+   * Mostrar su **Estado**
