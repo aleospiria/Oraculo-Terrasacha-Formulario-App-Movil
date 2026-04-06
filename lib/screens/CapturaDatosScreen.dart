@@ -1,8 +1,10 @@
-
 import 'dart:convert';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
+
+// Asegúrate de la ruta correcta. Si está en el mismo folder:
+import 'package:capturador_datos_offline/utils/reproductorAudio.dart';
 
 class CapturaDatosScreen extends StatefulWidget {
   const CapturaDatosScreen({super.key});
@@ -64,13 +66,8 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
       if (response.data != null) {
         final jsonData = jsonDecode(response.data!);
 
-        // Verificamos que getTree no sea nulo
         if (jsonData['getTree'] != null) {
           final List<dynamic> allItems = jsonData['getTree']['rawData']['items'];
-
-          if (allItems.isNotEmpty) {
-            debugPrint('📡 Primer item recibido: ${allItems[0]}');
-          }
 
           if (mounted) {
             setState(() {
@@ -91,6 +88,20 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
       debugPrint('❌ Error al cargar datos: $e\nStack trace: $stackTrace');
       if (mounted) setState(() => cargando = false);
     }
+  }
+
+  // Heurística simple para reconocer URLs de audio
+  bool _looksLikeAudioUrl(String? s) {
+    if (s == null) return false;
+    final lower = s.toLowerCase();
+    // extensiones comunes y detección S3
+    final audioExt = ['.mp3', '.m4a', '.wav', '.ogg', '.aac', '.webm'];
+    if (audioExt.any((e) => lower.endsWith(e))) return true;
+    if (lower.contains('s3.amazonaws') || lower.contains('/audio/')) return true;
+    // si es un URI válido con scheme http/https lo consideramos candidato
+    final uri = Uri.tryParse(s);
+    if (uri != null && (uri.scheme == 'http' || uri.scheme == 'https')) return true;
+    return false;
   }
 
   @override
@@ -122,9 +133,27 @@ class _CapturaDatosScreenState extends State<CapturaDatosScreen> {
           final item = rawDataList[index];
 
           final String nombre = item['name'] ?? 'Medición sin nombre';
+          final String? valueString = item['valueString'] as String?;
           final String valor =
-              item['valueFloat']?.toString() ?? item['valueString'] ?? 'Sin valor';
+              item['valueFloat']?.toString() ?? valueString ?? 'Sin valor';
 
+          final bool isAudio = _looksLikeAudioUrl(valueString) ||
+              (item['name'] != null && item['name'].toString().toLowerCase().contains('audio'));
+
+          if (isAudio && valueString != null) {
+            // Mostrar reproductor de audio
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: AudioPlayerTile(
+                key: ValueKey('audio_${item['id'] ?? index}'),
+                url: valueString,
+                title: nombre,
+                dense: true,
+              ),
+            );
+          }
+
+          // Item normal (no-audio)
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
             elevation: 2,
