@@ -1,6 +1,6 @@
 {
   "api": {
-    "formularioterrasacha": {
+    "tsbeoraculoapi": {
       "dependsOn": [],
       "output": {
         "authConfig": {
@@ -15,6 +15,85 @@
       },
       "providerPlugin": "awscloudformation",
       "service": "AppSync"
+    }
+  },
+  "auth": {
+    "tsbeoraculoapi7e5484f0": {
+      "customAuth": false,
+      "dependsOn": [],
+      "frontendAuthConfig": {
+        "mfaConfiguration": "OFF",
+        "mfaTypes": [
+          "SMS"
+        ],
+        "passwordProtectionSettings": {
+          "passwordPolicyCharacters": [],
+          "passwordPolicyMinLength": 8
+        },
+        "signupAttributes": [
+          "EMAIL"
+        ],
+        "socialProviders": [],
+        "usernameAttributes": [],
+        "verificationMechanisms": [
+          "EMAIL"
+        ]
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "Cognito"
+    }
+  },
+  "function": {
+    "audioToFeatures": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
+    "kobotoolboxProxy": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    }
+  },
+  "parameters": {
+    "AMPLIFY_function_audioToFeatures_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "audioToFeatures"
+        }
+      ]
+    },
+    "AMPLIFY_function_audioToFeatures_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "audioToFeatures"
+        }
+      ]
+    },
+    "AMPLIFY_function_kobotoolboxProxy_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "kobotoolboxProxy"
+        }
+      ]
+    },
+    "AMPLIFY_function_kobotoolboxProxy_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "kobotoolboxProxy"
+        }
+      ]
+    }
+  },
+  "storage": {
+    "s3744e127b": {
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "S3"
     }
   }
 }

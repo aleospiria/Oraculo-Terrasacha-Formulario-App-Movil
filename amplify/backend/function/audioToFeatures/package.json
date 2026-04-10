@@ -1,0 +1,10 @@
+{
+  "name": "audioToFeatures",
+  "version": "1.0.0",
+  "description": "Lambda function to extract features from audio files using Gemini API",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.490.0",
+    "@google/generative-ai": "^0.21.0"
+  }
+}

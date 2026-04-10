@@ -2,7 +2,7 @@
   "providers": [
     "awscloudformation"
   ],
-  "projectName": "FormularioTerrasacha",
+  "projectName": "tsbeoraculoapi",
   "version": "3.1",
   "frontend": "flutter",
   "flutter": {

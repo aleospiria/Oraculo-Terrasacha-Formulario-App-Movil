@@ -1,19 +1,32 @@
 {
   "dev": {
     "awscloudformation": {
-      "AuthRoleName": "amplify-formularioterrasacha-dev-b50d7-authRole",
-      "UnauthRoleArn": "arn:aws:iam::162076078956:role/amplify-formularioterrasacha-dev-b50d7-unauthRole",
-      "AuthRoleArn": "arn:aws:iam::162076078956:role/amplify-formularioterrasacha-dev-b50d7-authRole",
+      "AuthRoleName": "amplify-tsbeoraculoapi-dev-755cb-authRole",
+      "UnauthRoleArn": "arn:aws:iam::879381245127:role/amplify-tsbeoraculoapi-dev-755cb-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::879381245127:role/amplify-tsbeoraculoapi-dev-755cb-authRole",
       "Region": "us-east-1",
-      "DeploymentBucketName": "amplify-formularioterrasacha-dev-b50d7-deployment",
-      "UnauthRoleName": "amplify-formularioterrasacha-dev-b50d7-unauthRole",
-      "StackName": "amplify-formularioterrasacha-dev-b50d7",
-      "StackId": "arn:aws:cloudformation:us-east-1:162076078956:stack/amplify-formularioterrasacha-dev-b50d7/7ddda3c0-f44a-11f0-804e-0e124f123293",
-      "AmplifyAppId": "d1ew4zsl7dxx48"
+      "DeploymentBucketName": "amplify-tsbeoraculoapi-dev-755cb-deployment",
+      "UnauthRoleName": "amplify-tsbeoraculoapi-dev-755cb-unauthRole",
+      "StackName": "amplify-tsbeoraculoapi-dev-755cb",
+      "StackId": "arn:aws:cloudformation:us-east-1:879381245127:stack/amplify-tsbeoraculoapi-dev-755cb/eca16480-dfb5-11f0-8fec-121090aacf5b",
+      "AmplifyAppId": "d1y7zagn36dd1u"
     },
     "categories": {
-      "api": {
-        "formularioterrasacha": {}
+      "auth": {
+        "tsbeoraculoapi7e5484f0": {}
+      },
+      "function": {
+        "audioToFeatures": {
+          "deploymentBucketName": "amplify-tsbeoraculoapi-dev-755cb-deployment",
+          "s3Key": "amplify-builds/audioToFeatures-67394e734b476f4e5844-build.zip"
+        },
+        "kobotoolboxProxy": {
+          "deploymentBucketName": "amplify-tsbeoraculoapi-dev-755cb-deployment",
+          "s3Key": "amplify-builds/kobotoolboxProxy-56424549424a56683274-build.zip"
+        }
+      },
+      "storage": {
+        "s3744e127b": {}
       }
     }
   }
