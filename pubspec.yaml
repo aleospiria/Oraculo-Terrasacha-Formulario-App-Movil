@@ -17,6 +17,7 @@ dependencies:
   amplify_flutter: ^2.0.0
   amplify_api: ^2.0.0
   amplify_datastore: ^2.0.0
+  amplify_secure_storage: ^0.5.16
 
   just_audio: ^0.9.39
   audio_session: ^0.1.21
