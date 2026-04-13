@@ -25,6 +25,8 @@ import 'Project.dart';
 import 'RawData.dart';
 import 'Template.dart';
 import 'TemplateFeature.dart';
+import 'Topology.dart';
+import 'TopologyTree.dart';
 import 'Tree.dart';
 import 'UnitOfMeasure.dart';
 
@@ -33,14 +35,16 @@ export 'Project.dart';
 export 'RawData.dart';
 export 'Template.dart';
 export 'TemplateFeature.dart';
+export 'Topology.dart';
+export 'TopologyTree.dart';
 export 'Tree.dart';
 export 'UnitOfMeasure.dart';
 
 class ModelProvider implements amplify_core.ModelProviderInterface {
   @override
-  String version = "d133996799256e4e5cdba8e304e668be";
+  String version = "fd2aa318d106ab8184b458956a3adc7a";
   @override
-  List<amplify_core.ModelSchema> modelSchemas = [Feature.schema, Project.schema, RawData.schema, Template.schema, TemplateFeature.schema, Tree.schema, UnitOfMeasure.schema];
+  List<amplify_core.ModelSchema> modelSchemas = [Feature.schema, Project.schema, RawData.schema, Template.schema, TemplateFeature.schema, Topology.schema, TopologyTree.schema, Tree.schema, UnitOfMeasure.schema];
   @override
   List<amplify_core.ModelSchema> customTypeSchemas = [];
   static final ModelProvider _instance = ModelProvider();
@@ -59,6 +63,10 @@ class ModelProvider implements amplify_core.ModelProviderInterface {
         return Template.classType;
       case "TemplateFeature":
         return TemplateFeature.classType;
+      case "Topology":
+        return Topology.classType;
+      case "TopologyTree":
+        return TopologyTree.classType;
       case "Tree":
         return Tree.classType;
       case "UnitOfMeasure":

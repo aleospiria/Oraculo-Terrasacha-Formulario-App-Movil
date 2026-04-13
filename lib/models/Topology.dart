@@ -24,16 +24,18 @@ import 'package:amplify_core/amplify_core.dart' as amplify_core;
 import 'package:collection/collection.dart';
 
 
-/** This is an auto generated class representing the Tree type in your schema. */
-class Tree extends amplify_core.Model {
-  static const classType = const _TreeModelType();
+/** This is an auto generated class representing the Topology type in your schema. */
+class Topology extends amplify_core.Model {
+  static const classType = const _TopologyModelType();
   final String id;
   final String? _name;
-  final bool? _are_audios_processed;
+  final String? _string_code;
+  final String? _number_code;
   final String? _status;
+  final String? _polygon;
   final Project? _project;
-  final Template? _template;
-  final List<RawData>? _rawData;
+  final Topology? _topologyParent;
+  final List<Topology>? _topologies;
   final List<TopologyTree>? _topologyTrees;
   final amplify_core.TemporalDateTime? _createdAt;
   final amplify_core.TemporalDateTime? _updatedAt;
@@ -45,8 +47,8 @@ class Tree extends amplify_core.Model {
   @override
   String getId() => id;
   
-  TreeModelIdentifier get modelIdentifier {
-      return TreeModelIdentifier(
+  TopologyModelIdentifier get modelIdentifier {
+      return TopologyModelIdentifier(
         id: id
       );
   }
@@ -64,24 +66,32 @@ class Tree extends amplify_core.Model {
     }
   }
   
-  bool? get are_audios_processed {
-    return _are_audios_processed;
+  String? get string_code {
+    return _string_code;
+  }
+  
+  String? get number_code {
+    return _number_code;
   }
   
   String? get status {
     return _status;
   }
   
+  String? get polygon {
+    return _polygon;
+  }
+  
   Project? get project {
     return _project;
   }
   
-  Template? get template {
-    return _template;
+  Topology? get topologyParent {
+    return _topologyParent;
   }
   
-  List<RawData>? get rawData {
-    return _rawData;
+  List<Topology>? get topologies {
+    return _topologies;
   }
   
   List<TopologyTree>? get topologyTrees {
@@ -96,17 +106,19 @@ class Tree extends amplify_core.Model {
     return _updatedAt;
   }
   
-  const Tree._internal({required this.id, required name, are_audios_processed, status, project, template, rawData, topologyTrees, createdAt, updatedAt}): _name = name, _are_audios_processed = are_audios_processed, _status = status, _project = project, _template = template, _rawData = rawData, _topologyTrees = topologyTrees, _createdAt = createdAt, _updatedAt = updatedAt;
+  const Topology._internal({required this.id, required name, string_code, number_code, status, polygon, project, topologyParent, topologies, topologyTrees, createdAt, updatedAt}): _name = name, _string_code = string_code, _number_code = number_code, _status = status, _polygon = polygon, _project = project, _topologyParent = topologyParent, _topologies = topologies, _topologyTrees = topologyTrees, _createdAt = createdAt, _updatedAt = updatedAt;
   
-  factory Tree({String? id, required String name, bool? are_audios_processed, String? status, Project? project, Template? template, List<RawData>? rawData, List<TopologyTree>? topologyTrees}) {
-    return Tree._internal(
+  factory Topology({String? id, required String name, String? string_code, String? number_code, String? status, String? polygon, Project? project, Topology? topologyParent, List<Topology>? topologies, List<TopologyTree>? topologyTrees}) {
+    return Topology._internal(
       id: id == null ? amplify_core.UUID.getUUID() : id,
       name: name,
-      are_audios_processed: are_audios_processed,
+      string_code: string_code,
+      number_code: number_code,
       status: status,
+      polygon: polygon,
       project: project,
-      template: template,
-      rawData: rawData != null ? List<RawData>.unmodifiable(rawData) : rawData,
+      topologyParent: topologyParent,
+      topologies: topologies != null ? List<Topology>.unmodifiable(topologies) : topologies,
       topologyTrees: topologyTrees != null ? List<TopologyTree>.unmodifiable(topologyTrees) : topologyTrees);
   }
   
@@ -117,14 +129,16 @@ class Tree extends amplify_core.Model {
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is Tree &&
+    return other is Topology &&
       id == other.id &&
       _name == other._name &&
-      _are_audios_processed == other._are_audios_processed &&
+      _string_code == other._string_code &&
+      _number_code == other._number_code &&
       _status == other._status &&
+      _polygon == other._polygon &&
       _project == other._project &&
-      _template == other._template &&
-      DeepCollectionEquality().equals(_rawData, other._rawData) &&
+      _topologyParent == other._topologyParent &&
+      DeepCollectionEquality().equals(_topologies, other._topologies) &&
       DeepCollectionEquality().equals(_topologyTrees, other._topologyTrees);
   }
   
@@ -135,13 +149,15 @@ class Tree extends amplify_core.Model {
   String toString() {
     var buffer = new StringBuffer();
     
-    buffer.write("Tree {");
+    buffer.write("Topology {");
     buffer.write("id=" + "$id" + ", ");
     buffer.write("name=" + "$_name" + ", ");
-    buffer.write("are_audios_processed=" + (_are_audios_processed != null ? _are_audios_processed!.toString() : "null") + ", ");
+    buffer.write("string_code=" + "$_string_code" + ", ");
+    buffer.write("number_code=" + "$_number_code" + ", ");
     buffer.write("status=" + "$_status" + ", ");
+    buffer.write("polygon=" + "$_polygon" + ", ");
     buffer.write("project=" + (_project != null ? _project!.toString() : "null") + ", ");
-    buffer.write("template=" + (_template != null ? _template!.toString() : "null") + ", ");
+    buffer.write("topologyParent=" + (_topologyParent != null ? _topologyParent!.toString() : "null") + ", ");
     buffer.write("createdAt=" + (_createdAt != null ? _createdAt!.format() : "null") + ", ");
     buffer.write("updatedAt=" + (_updatedAt != null ? _updatedAt!.format() : "null"));
     buffer.write("}");
@@ -149,65 +165,73 @@ class Tree extends amplify_core.Model {
     return buffer.toString();
   }
   
-  Tree copyWith({String? name, bool? are_audios_processed, String? status, Project? project, Template? template, List<RawData>? rawData, List<TopologyTree>? topologyTrees}) {
-    return Tree._internal(
+  Topology copyWith({String? name, String? string_code, String? number_code, String? status, String? polygon, Project? project, Topology? topologyParent, List<Topology>? topologies, List<TopologyTree>? topologyTrees}) {
+    return Topology._internal(
       id: id,
       name: name ?? this.name,
-      are_audios_processed: are_audios_processed ?? this.are_audios_processed,
+      string_code: string_code ?? this.string_code,
+      number_code: number_code ?? this.number_code,
       status: status ?? this.status,
+      polygon: polygon ?? this.polygon,
       project: project ?? this.project,
-      template: template ?? this.template,
-      rawData: rawData ?? this.rawData,
+      topologyParent: topologyParent ?? this.topologyParent,
+      topologies: topologies ?? this.topologies,
       topologyTrees: topologyTrees ?? this.topologyTrees);
   }
   
-  Tree copyWithModelFieldValues({
+  Topology copyWithModelFieldValues({
     ModelFieldValue<String>? name,
-    ModelFieldValue<bool?>? are_audios_processed,
+    ModelFieldValue<String?>? string_code,
+    ModelFieldValue<String?>? number_code,
     ModelFieldValue<String?>? status,
+    ModelFieldValue<String?>? polygon,
     ModelFieldValue<Project?>? project,
-    ModelFieldValue<Template?>? template,
-    ModelFieldValue<List<RawData>?>? rawData,
+    ModelFieldValue<Topology?>? topologyParent,
+    ModelFieldValue<List<Topology>?>? topologies,
     ModelFieldValue<List<TopologyTree>?>? topologyTrees
   }) {
-    return Tree._internal(
+    return Topology._internal(
       id: id,
       name: name == null ? this.name : name.value,
-      are_audios_processed: are_audios_processed == null ? this.are_audios_processed : are_audios_processed.value,
+      string_code: string_code == null ? this.string_code : string_code.value,
+      number_code: number_code == null ? this.number_code : number_code.value,
       status: status == null ? this.status : status.value,
+      polygon: polygon == null ? this.polygon : polygon.value,
       project: project == null ? this.project : project.value,
-      template: template == null ? this.template : template.value,
-      rawData: rawData == null ? this.rawData : rawData.value,
+      topologyParent: topologyParent == null ? this.topologyParent : topologyParent.value,
+      topologies: topologies == null ? this.topologies : topologies.value,
       topologyTrees: topologyTrees == null ? this.topologyTrees : topologyTrees.value
     );
   }
   
-  Tree.fromJson(Map<String, dynamic> json)  
+  Topology.fromJson(Map<String, dynamic> json)  
     : id = json['id'],
       _name = json['name'],
-      _are_audios_processed = json['are_audios_processed'],
+      _string_code = json['string_code'],
+      _number_code = json['number_code'],
       _status = json['status'],
+      _polygon = json['polygon'],
       _project = json['project'] != null
         ? json['project']['serializedData'] != null
           ? Project.fromJson(new Map<String, dynamic>.from(json['project']['serializedData']))
           : Project.fromJson(new Map<String, dynamic>.from(json['project']))
         : null,
-      _template = json['template'] != null
-        ? json['template']['serializedData'] != null
-          ? Template.fromJson(new Map<String, dynamic>.from(json['template']['serializedData']))
-          : Template.fromJson(new Map<String, dynamic>.from(json['template']))
+      _topologyParent = json['topologyParent'] != null
+        ? json['topologyParent']['serializedData'] != null
+          ? Topology.fromJson(new Map<String, dynamic>.from(json['topologyParent']['serializedData']))
+          : Topology.fromJson(new Map<String, dynamic>.from(json['topologyParent']))
         : null,
-      _rawData = json['rawData']  is Map
-        ? (json['rawData']['items'] is List
-          ? (json['rawData']['items'] as List)
+      _topologies = json['topologies']  is Map
+        ? (json['topologies']['items'] is List
+          ? (json['topologies']['items'] as List)
               .where((e) => e != null)
-              .map((e) => RawData.fromJson(new Map<String, dynamic>.from(e)))
+              .map((e) => Topology.fromJson(new Map<String, dynamic>.from(e)))
               .toList()
           : null)
-        : (json['rawData'] is List
-          ? (json['rawData'] as List)
+        : (json['topologies'] is List
+          ? (json['topologies'] as List)
               .where((e) => e?['serializedData'] != null)
-              .map((e) => RawData.fromJson(new Map<String, dynamic>.from(e?['serializedData'])))
+              .map((e) => Topology.fromJson(new Map<String, dynamic>.from(e?['serializedData'])))
               .toList()
           : null),
       _topologyTrees = json['topologyTrees']  is Map
@@ -227,89 +251,105 @@ class Tree extends amplify_core.Model {
       _updatedAt = json['updatedAt'] != null ? amplify_core.TemporalDateTime.fromString(json['updatedAt']) : null;
   
   Map<String, dynamic> toJson() => {
-    'id': id, 'name': _name, 'are_audios_processed': _are_audios_processed, 'status': _status, 'project': _project?.toJson(), 'template': _template?.toJson(), 'rawData': _rawData?.map((RawData? e) => e?.toJson()).toList(), 'topologyTrees': _topologyTrees?.map((TopologyTree? e) => e?.toJson()).toList(), 'createdAt': _createdAt?.format(), 'updatedAt': _updatedAt?.format()
+    'id': id, 'name': _name, 'string_code': _string_code, 'number_code': _number_code, 'status': _status, 'polygon': _polygon, 'project': _project?.toJson(), 'topologyParent': _topologyParent?.toJson(), 'topologies': _topologies?.map((Topology? e) => e?.toJson()).toList(), 'topologyTrees': _topologyTrees?.map((TopologyTree? e) => e?.toJson()).toList(), 'createdAt': _createdAt?.format(), 'updatedAt': _updatedAt?.format()
   };
   
   Map<String, Object?> toMap() => {
     'id': id,
     'name': _name,
-    'are_audios_processed': _are_audios_processed,
+    'string_code': _string_code,
+    'number_code': _number_code,
     'status': _status,
+    'polygon': _polygon,
     'project': _project,
-    'template': _template,
-    'rawData': _rawData,
+    'topologyParent': _topologyParent,
+    'topologies': _topologies,
     'topologyTrees': _topologyTrees,
     'createdAt': _createdAt,
     'updatedAt': _updatedAt
   };
 
-  static final amplify_core.QueryModelIdentifier<TreeModelIdentifier> MODEL_IDENTIFIER = amplify_core.QueryModelIdentifier<TreeModelIdentifier>();
+  static final amplify_core.QueryModelIdentifier<TopologyModelIdentifier> MODEL_IDENTIFIER = amplify_core.QueryModelIdentifier<TopologyModelIdentifier>();
   static final ID = amplify_core.QueryField(fieldName: "id");
   static final NAME = amplify_core.QueryField(fieldName: "name");
-  static final ARE_AUDIOS_PROCESSED = amplify_core.QueryField(fieldName: "are_audios_processed");
+  static final STRING_CODE = amplify_core.QueryField(fieldName: "string_code");
+  static final NUMBER_CODE = amplify_core.QueryField(fieldName: "number_code");
   static final STATUS = amplify_core.QueryField(fieldName: "status");
+  static final POLYGON = amplify_core.QueryField(fieldName: "polygon");
   static final PROJECT = amplify_core.QueryField(
     fieldName: "project",
     fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'Project'));
-  static final TEMPLATE = amplify_core.QueryField(
-    fieldName: "template",
-    fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'Template'));
-  static final RAWDATA = amplify_core.QueryField(
-    fieldName: "rawData",
-    fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'RawData'));
+  static final TOPOLOGYPARENT = amplify_core.QueryField(
+    fieldName: "topologyParent",
+    fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'Topology'));
+  static final TOPOLOGIES = amplify_core.QueryField(
+    fieldName: "topologies",
+    fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'Topology'));
   static final TOPOLOGYTREES = amplify_core.QueryField(
     fieldName: "topologyTrees",
     fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'TopologyTree'));
   static var schema = amplify_core.Model.defineSchema(define: (amplify_core.ModelSchemaDefinition modelSchemaDefinition) {
-    modelSchemaDefinition.name = "Tree";
-    modelSchemaDefinition.pluralName = "Trees";
+    modelSchemaDefinition.name = "Topology";
+    modelSchemaDefinition.pluralName = "Topologies";
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.id());
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-      key: Tree.NAME,
+      key: Topology.NAME,
       isRequired: true,
       ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.string)
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-      key: Tree.ARE_AUDIOS_PROCESSED,
+      key: Topology.STRING_CODE,
       isRequired: false,
-      ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.bool)
+      ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.string)
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-      key: Tree.STATUS,
+      key: Topology.NUMBER_CODE,
+      isRequired: false,
+      ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.string)
+    ));
+    
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+      key: Topology.STATUS,
+      isRequired: false,
+      ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.string)
+    ));
+    
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+      key: Topology.POLYGON,
       isRequired: false,
       ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.string)
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.belongsTo(
-      key: Tree.PROJECT,
+      key: Topology.PROJECT,
       isRequired: false,
-      targetNames: ['projectTreesId'],
+      targetNames: ['projectTopologiesId'],
       ofModelName: 'Project'
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.belongsTo(
-      key: Tree.TEMPLATE,
+      key: Topology.TOPOLOGYPARENT,
       isRequired: false,
-      targetNames: ['templateTreesId'],
-      ofModelName: 'Template'
+      targetNames: ['topologyTopologiesId'],
+      ofModelName: 'Topology'
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.hasMany(
-      key: Tree.RAWDATA,
+      key: Topology.TOPOLOGIES,
       isRequired: false,
-      ofModelName: 'RawData',
-      associatedKey: RawData.TREE
+      ofModelName: 'Topology',
+      associatedKey: Topology.TOPOLOGYPARENT
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.hasMany(
-      key: Tree.TOPOLOGYTREES,
+      key: Topology.TOPOLOGYTREES,
       isRequired: false,
       ofModelName: 'TopologyTree',
-      associatedKey: TopologyTree.TREE
+      associatedKey: TopologyTree.TOPOLOGY
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.nonQueryField(
@@ -328,29 +368,29 @@ class Tree extends amplify_core.Model {
   });
 }
 
-class _TreeModelType extends amplify_core.ModelType<Tree> {
-  const _TreeModelType();
+class _TopologyModelType extends amplify_core.ModelType<Topology> {
+  const _TopologyModelType();
   
   @override
-  Tree fromJson(Map<String, dynamic> jsonData) {
-    return Tree.fromJson(jsonData);
+  Topology fromJson(Map<String, dynamic> jsonData) {
+    return Topology.fromJson(jsonData);
   }
   
   @override
   String modelName() {
-    return 'Tree';
+    return 'Topology';
   }
 }
 
 /**
  * This is an auto generated class representing the model identifier
- * of [Tree] in your schema.
+ * of [Topology] in your schema.
  */
-class TreeModelIdentifier implements amplify_core.ModelIdentifier<Tree> {
+class TopologyModelIdentifier implements amplify_core.ModelIdentifier<Topology> {
   final String id;
 
-  /** Create an instance of TreeModelIdentifier using [id] the primary key. */
-  const TreeModelIdentifier({
+  /** Create an instance of TopologyModelIdentifier using [id] the primary key. */
+  const TopologyModelIdentifier({
     required this.id});
   
   @override
@@ -368,7 +408,7 @@ class TreeModelIdentifier implements amplify_core.ModelIdentifier<Tree> {
   String serializeAsString() => serializeAsMap().values.join('#');
   
   @override
-  String toString() => 'TreeModelIdentifier(id: $id)';
+  String toString() => 'TopologyModelIdentifier(id: $id)';
   
   @override
   bool operator ==(Object other) {
@@ -376,7 +416,7 @@ class TreeModelIdentifier implements amplify_core.ModelIdentifier<Tree> {
       return true;
     }
     
-    return other is TreeModelIdentifier &&
+    return other is TopologyModelIdentifier &&
       id == other.id;
   }
   

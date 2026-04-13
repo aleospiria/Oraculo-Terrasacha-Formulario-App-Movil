@@ -31,6 +31,7 @@ class Project extends amplify_core.Model {
   final String? _name;
   final String? _status;
   final List<Tree>? _trees;
+  final List<Topology>? _topologies;
   final amplify_core.TemporalDateTime? _createdAt;
   final amplify_core.TemporalDateTime? _updatedAt;
 
@@ -77,6 +78,10 @@ class Project extends amplify_core.Model {
     return _trees;
   }
   
+  List<Topology>? get topologies {
+    return _topologies;
+  }
+  
   amplify_core.TemporalDateTime? get createdAt {
     return _createdAt;
   }
@@ -85,14 +90,15 @@ class Project extends amplify_core.Model {
     return _updatedAt;
   }
   
-  const Project._internal({required this.id, required name, required status, trees, createdAt, updatedAt}): _name = name, _status = status, _trees = trees, _createdAt = createdAt, _updatedAt = updatedAt;
+  const Project._internal({required this.id, required name, required status, trees, topologies, createdAt, updatedAt}): _name = name, _status = status, _trees = trees, _topologies = topologies, _createdAt = createdAt, _updatedAt = updatedAt;
   
-  factory Project({String? id, required String name, required String status, List<Tree>? trees}) {
+  factory Project({String? id, required String name, required String status, List<Tree>? trees, List<Topology>? topologies}) {
     return Project._internal(
       id: id == null ? amplify_core.UUID.getUUID() : id,
       name: name,
       status: status,
-      trees: trees != null ? List<Tree>.unmodifiable(trees) : trees);
+      trees: trees != null ? List<Tree>.unmodifiable(trees) : trees,
+      topologies: topologies != null ? List<Topology>.unmodifiable(topologies) : topologies);
   }
   
   bool equals(Object other) {
@@ -106,7 +112,8 @@ class Project extends amplify_core.Model {
       id == other.id &&
       _name == other._name &&
       _status == other._status &&
-      DeepCollectionEquality().equals(_trees, other._trees);
+      DeepCollectionEquality().equals(_trees, other._trees) &&
+      DeepCollectionEquality().equals(_topologies, other._topologies);
   }
   
   @override
@@ -127,24 +134,27 @@ class Project extends amplify_core.Model {
     return buffer.toString();
   }
   
-  Project copyWith({String? name, String? status, List<Tree>? trees}) {
+  Project copyWith({String? name, String? status, List<Tree>? trees, List<Topology>? topologies}) {
     return Project._internal(
       id: id,
       name: name ?? this.name,
       status: status ?? this.status,
-      trees: trees ?? this.trees);
+      trees: trees ?? this.trees,
+      topologies: topologies ?? this.topologies);
   }
   
   Project copyWithModelFieldValues({
     ModelFieldValue<String>? name,
     ModelFieldValue<String>? status,
-    ModelFieldValue<List<Tree>?>? trees
+    ModelFieldValue<List<Tree>?>? trees,
+    ModelFieldValue<List<Topology>?>? topologies
   }) {
     return Project._internal(
       id: id,
       name: name == null ? this.name : name.value,
       status: status == null ? this.status : status.value,
-      trees: trees == null ? this.trees : trees.value
+      trees: trees == null ? this.trees : trees.value,
+      topologies: topologies == null ? this.topologies : topologies.value
     );
   }
   
@@ -165,11 +175,24 @@ class Project extends amplify_core.Model {
               .map((e) => Tree.fromJson(new Map<String, dynamic>.from(e?['serializedData'])))
               .toList()
           : null),
+      _topologies = json['topologies']  is Map
+        ? (json['topologies']['items'] is List
+          ? (json['topologies']['items'] as List)
+              .where((e) => e != null)
+              .map((e) => Topology.fromJson(new Map<String, dynamic>.from(e)))
+              .toList()
+          : null)
+        : (json['topologies'] is List
+          ? (json['topologies'] as List)
+              .where((e) => e?['serializedData'] != null)
+              .map((e) => Topology.fromJson(new Map<String, dynamic>.from(e?['serializedData'])))
+              .toList()
+          : null),
       _createdAt = json['createdAt'] != null ? amplify_core.TemporalDateTime.fromString(json['createdAt']) : null,
       _updatedAt = json['updatedAt'] != null ? amplify_core.TemporalDateTime.fromString(json['updatedAt']) : null;
   
   Map<String, dynamic> toJson() => {
-    'id': id, 'name': _name, 'status': _status, 'trees': _trees?.map((Tree? e) => e?.toJson()).toList(), 'createdAt': _createdAt?.format(), 'updatedAt': _updatedAt?.format()
+    'id': id, 'name': _name, 'status': _status, 'trees': _trees?.map((Tree? e) => e?.toJson()).toList(), 'topologies': _topologies?.map((Topology? e) => e?.toJson()).toList(), 'createdAt': _createdAt?.format(), 'updatedAt': _updatedAt?.format()
   };
   
   Map<String, Object?> toMap() => {
@@ -177,6 +200,7 @@ class Project extends amplify_core.Model {
     'name': _name,
     'status': _status,
     'trees': _trees,
+    'topologies': _topologies,
     'createdAt': _createdAt,
     'updatedAt': _updatedAt
   };
@@ -188,6 +212,9 @@ class Project extends amplify_core.Model {
   static final TREES = amplify_core.QueryField(
     fieldName: "trees",
     fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'Tree'));
+  static final TOPOLOGIES = amplify_core.QueryField(
+    fieldName: "topologies",
+    fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'Topology'));
   static var schema = amplify_core.Model.defineSchema(define: (amplify_core.ModelSchemaDefinition modelSchemaDefinition) {
     modelSchemaDefinition.name = "Project";
     modelSchemaDefinition.pluralName = "Projects";
@@ -211,6 +238,13 @@ class Project extends amplify_core.Model {
       isRequired: false,
       ofModelName: 'Tree',
       associatedKey: Tree.PROJECT
+    ));
+    
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.hasMany(
+      key: Project.TOPOLOGIES,
+      isRequired: false,
+      ofModelName: 'Topology',
+      associatedKey: Topology.PROJECT
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.nonQueryField(

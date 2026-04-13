@@ -30,7 +30,8 @@ class RawData extends amplify_core.Model {
   final String? _name;
   final double? _valueFloat;
   final String? _valueString;
-  final amplify_core.TemporalDateTime? _timestamp;
+  final amplify_core.TemporalDateTime? _start_date;
+  final amplify_core.TemporalDateTime? _end_date;
   final Feature? _feature;
   final Tree? _tree;
   final amplify_core.TemporalDateTime? _createdAt;
@@ -61,8 +62,12 @@ class RawData extends amplify_core.Model {
     return _valueString;
   }
   
-  amplify_core.TemporalDateTime? get timestamp {
-    return _timestamp;
+  amplify_core.TemporalDateTime? get start_date {
+    return _start_date;
+  }
+  
+  amplify_core.TemporalDateTime? get end_date {
+    return _end_date;
   }
   
   Feature? get feature {
@@ -81,15 +86,16 @@ class RawData extends amplify_core.Model {
     return _updatedAt;
   }
   
-  const RawData._internal({required this.id, name, valueFloat, valueString, timestamp, feature, tree, createdAt, updatedAt}): _name = name, _valueFloat = valueFloat, _valueString = valueString, _timestamp = timestamp, _feature = feature, _tree = tree, _createdAt = createdAt, _updatedAt = updatedAt;
+  const RawData._internal({required this.id, name, valueFloat, valueString, start_date, end_date, feature, tree, createdAt, updatedAt}): _name = name, _valueFloat = valueFloat, _valueString = valueString, _start_date = start_date, _end_date = end_date, _feature = feature, _tree = tree, _createdAt = createdAt, _updatedAt = updatedAt;
   
-  factory RawData({String? id, String? name, double? valueFloat, String? valueString, amplify_core.TemporalDateTime? timestamp, Feature? feature, Tree? tree}) {
+  factory RawData({String? id, String? name, double? valueFloat, String? valueString, amplify_core.TemporalDateTime? start_date, amplify_core.TemporalDateTime? end_date, Feature? feature, Tree? tree, required amplify_core.TemporalDateTime timestamp}) {
     return RawData._internal(
       id: id == null ? amplify_core.UUID.getUUID() : id,
       name: name,
       valueFloat: valueFloat,
       valueString: valueString,
-      timestamp: timestamp,
+      start_date: start_date,
+      end_date: end_date,
       feature: feature,
       tree: tree);
   }
@@ -106,7 +112,8 @@ class RawData extends amplify_core.Model {
       _name == other._name &&
       _valueFloat == other._valueFloat &&
       _valueString == other._valueString &&
-      _timestamp == other._timestamp &&
+      _start_date == other._start_date &&
+      _end_date == other._end_date &&
       _feature == other._feature &&
       _tree == other._tree;
   }
@@ -123,7 +130,8 @@ class RawData extends amplify_core.Model {
     buffer.write("name=" + "$_name" + ", ");
     buffer.write("valueFloat=" + (_valueFloat != null ? _valueFloat!.toString() : "null") + ", ");
     buffer.write("valueString=" + "$_valueString" + ", ");
-    buffer.write("timestamp=" + (_timestamp != null ? _timestamp!.format() : "null") + ", ");
+    buffer.write("start_date=" + (_start_date != null ? _start_date!.format() : "null") + ", ");
+    buffer.write("end_date=" + (_end_date != null ? _end_date!.format() : "null") + ", ");
     buffer.write("feature=" + (_feature != null ? _feature!.toString() : "null") + ", ");
     buffer.write("tree=" + (_tree != null ? _tree!.toString() : "null") + ", ");
     buffer.write("createdAt=" + (_createdAt != null ? _createdAt!.format() : "null") + ", ");
@@ -133,13 +141,14 @@ class RawData extends amplify_core.Model {
     return buffer.toString();
   }
   
-  RawData copyWith({String? name, double? valueFloat, String? valueString, amplify_core.TemporalDateTime? timestamp, Feature? feature, Tree? tree}) {
+  RawData copyWith({String? name, double? valueFloat, String? valueString, amplify_core.TemporalDateTime? start_date, amplify_core.TemporalDateTime? end_date, Feature? feature, Tree? tree}) {
     return RawData._internal(
       id: id,
       name: name ?? this.name,
       valueFloat: valueFloat ?? this.valueFloat,
       valueString: valueString ?? this.valueString,
-      timestamp: timestamp ?? this.timestamp,
+      start_date: start_date ?? this.start_date,
+      end_date: end_date ?? this.end_date,
       feature: feature ?? this.feature,
       tree: tree ?? this.tree);
   }
@@ -148,7 +157,8 @@ class RawData extends amplify_core.Model {
     ModelFieldValue<String?>? name,
     ModelFieldValue<double?>? valueFloat,
     ModelFieldValue<String?>? valueString,
-    ModelFieldValue<amplify_core.TemporalDateTime?>? timestamp,
+    ModelFieldValue<amplify_core.TemporalDateTime?>? start_date,
+    ModelFieldValue<amplify_core.TemporalDateTime?>? end_date,
     ModelFieldValue<Feature?>? feature,
     ModelFieldValue<Tree?>? tree
   }) {
@@ -157,7 +167,8 @@ class RawData extends amplify_core.Model {
       name: name == null ? this.name : name.value,
       valueFloat: valueFloat == null ? this.valueFloat : valueFloat.value,
       valueString: valueString == null ? this.valueString : valueString.value,
-      timestamp: timestamp == null ? this.timestamp : timestamp.value,
+      start_date: start_date == null ? this.start_date : start_date.value,
+      end_date: end_date == null ? this.end_date : end_date.value,
       feature: feature == null ? this.feature : feature.value,
       tree: tree == null ? this.tree : tree.value
     );
@@ -168,7 +179,8 @@ class RawData extends amplify_core.Model {
       _name = json['name'],
       _valueFloat = (json['valueFloat'] as num?)?.toDouble(),
       _valueString = json['valueString'],
-      _timestamp = json['timestamp'] != null ? amplify_core.TemporalDateTime.fromString(json['timestamp']) : null,
+      _start_date = json['start_date'] != null ? amplify_core.TemporalDateTime.fromString(json['start_date']) : null,
+      _end_date = json['end_date'] != null ? amplify_core.TemporalDateTime.fromString(json['end_date']) : null,
       _feature = json['feature'] != null
         ? json['feature']['serializedData'] != null
           ? Feature.fromJson(new Map<String, dynamic>.from(json['feature']['serializedData']))
@@ -183,7 +195,7 @@ class RawData extends amplify_core.Model {
       _updatedAt = json['updatedAt'] != null ? amplify_core.TemporalDateTime.fromString(json['updatedAt']) : null;
   
   Map<String, dynamic> toJson() => {
-    'id': id, 'name': _name, 'valueFloat': _valueFloat, 'valueString': _valueString, 'timestamp': _timestamp?.format(), 'feature': _feature?.toJson(), 'tree': _tree?.toJson(), 'createdAt': _createdAt?.format(), 'updatedAt': _updatedAt?.format()
+    'id': id, 'name': _name, 'valueFloat': _valueFloat, 'valueString': _valueString, 'start_date': _start_date?.format(), 'end_date': _end_date?.format(), 'feature': _feature?.toJson(), 'tree': _tree?.toJson(), 'createdAt': _createdAt?.format(), 'updatedAt': _updatedAt?.format()
   };
   
   Map<String, Object?> toMap() => {
@@ -191,7 +203,8 @@ class RawData extends amplify_core.Model {
     'name': _name,
     'valueFloat': _valueFloat,
     'valueString': _valueString,
-    'timestamp': _timestamp,
+    'start_date': _start_date,
+    'end_date': _end_date,
     'feature': _feature,
     'tree': _tree,
     'createdAt': _createdAt,
@@ -203,7 +216,8 @@ class RawData extends amplify_core.Model {
   static final NAME = amplify_core.QueryField(fieldName: "name");
   static final VALUEFLOAT = amplify_core.QueryField(fieldName: "valueFloat");
   static final VALUESTRING = amplify_core.QueryField(fieldName: "valueString");
-  static final TIMESTAMP = amplify_core.QueryField(fieldName: "timestamp");
+  static final START_DATE = amplify_core.QueryField(fieldName: "start_date");
+  static final END_DATE = amplify_core.QueryField(fieldName: "end_date");
   static final FEATURE = amplify_core.QueryField(
     fieldName: "feature",
     fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'Feature'));
@@ -235,7 +249,13 @@ class RawData extends amplify_core.Model {
     ));
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-      key: RawData.TIMESTAMP,
+      key: RawData.START_DATE,
+      isRequired: false,
+      ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.dateTime)
+    ));
+    
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+      key: RawData.END_DATE,
       isRequired: false,
       ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.dateTime)
     ));
