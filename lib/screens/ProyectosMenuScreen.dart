@@ -1,7 +1,12 @@
+// lib/Screens/ProyectosMenuScreen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
-import 'package:amplify_api/amplify_api.dart';
-import 'dart:convert';
+import 'package:amplify_datastore/amplify_datastore.dart';
+
+// Ajusta el import según la ruta donde estén tus modelos generados
+import 'package:capturador_datos_offline/models/ModelProvider.dart';
+import 'package:capturador_datos_offline/models/Project.dart';
 
 class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
@@ -11,8 +16,12 @@ class ProyectosMenuScreen extends StatefulWidget {
 }
 
 class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
-  List<dynamic> proyectos = [];
+  List<Project> proyectos = [];
   bool cargando = true;
+
+  // Subscriptions (dinámicos para compatibilidad con distintas versiones)
+  StreamSubscription<dynamic>? _observeSub;
+  StreamSubscription<dynamic>? _hubSub;
 
   // Colores del diseño
   final Color primaryColor = const Color(0xFF4A5C24);
@@ -21,45 +30,159 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   @override
   void initState() {
     super.initState();
-    _cargarDesdeNube();
+    _initDataStoreListeners();
+    _initialLoad(); // carga inicial
   }
 
-  Future<void> _cargarDesdeNube() async {
-    if (!mounted) return;
-    setState(() => cargando = true);
+  @override
+  void dispose() {
+    _observeSub?.cancel();
+    _hubSub?.cancel();
+    super.dispose();
+  }
 
+  // Carga inicial simple (query)
+  Future<void> _initialLoad() async {
     try {
-      String graphQLDocument = '''
-        query ListProjects {
-          listProjects {
-            items {
-              id
-              name
-              status
+      final items = await Amplify.DataStore.query(Project.classType);
+      if (!mounted) return;
+      setState(() {
+        proyectos = List<Project>.from(items);
+        cargando = false;
+      });
+    } catch (e) {
+      debugPrint('Error en initialLoad: $e');
+      if (mounted) setState(() => cargando = false);
+    }
+  }
+
+  // Configura listeners de DataStore de forma que funcione tanto en gen1 como gen2
+  void _initDataStoreListeners() {
+    // 1) Intento observeQuery (gen2)
+    try {
+      final dynamic obsQueryStream = Amplify.DataStore.observeQuery(Project.classType);
+      if (obsQueryStream is Stream) {
+        _observeSub = obsQueryStream.listen((dynamic snapshot) {
+          try {
+            // snapshot puede tener .items (gen2)
+            final dynamic itemsDyn = (snapshot as dynamic).items;
+            if (itemsDyn is List) {
+              final list = itemsDyn.map((e) => e as Project).toList();
+              if (!mounted) return;
+              setState(() {
+                proyectos = list;
+                cargando = false;
+              });
+              debugPrint('observeQuery → ${list.length} proyectos (isSynced=${(snapshot as dynamic).isSynced ?? '??'})');
+              return;
             }
+          } catch (_) {
+            // si falla, caeremos al fallback (re-query)
           }
-        }
-      ''';
 
-      final operation = Amplify.API.query(
-        request: GraphQLRequest<String>(document: graphQLDocument),
-      );
+          // fallback: re-query completo
+          _requeryAllProjects();
+        }, onError: (err) {
+          debugPrint('observeQuery error: $err');
+        });
 
-      final response = await operation.response;
-      final data = response.data;
-
-      if (data != null) {
-        final Map<String, dynamic> jsonMap = json.decode(data);
-        if (mounted) {
-          setState(() {
-            proyectos = jsonMap['listProjects']['items'];
-            cargando = false;
-          });
-        }
+        debugPrint('Usando observeQuery (gen2) para updates en tiempo real');
+        return;
       }
     } catch (e) {
-      debugPrint('❌ Error: $e');
-      if (mounted) setState(() => cargando = false);
+      debugPrint('observeQuery no disponible o falló: $e');
+      // continúa a fallback
+    }
+
+    // 2) Fallback: intentar observe (gen1) y, si no funciona, suscribir al Hub de DataStore
+    try {
+      final dynamic obsStream = Amplify.DataStore.observe(Project.classType);
+      if (obsStream is Stream) {
+        _observeSub = obsStream.listen((dynamic event) {
+          // En gen1 el event contiene información de tipo (create/update/delete).
+          // Para simplicidad y robustez haremos un re-query completo.
+          debugPrint('DataStore.observe event recibido, haciendo re-query');
+          _requeryAllProjects();
+        }, onError: (err) {
+          debugPrint('observe error: $err');
+        });
+
+        debugPrint('Usando DataStore.observe (gen1) para updates y re-query');
+        return;
+      }
+    } catch (e) {
+      debugPrint('DataStore.observe no disponible: $e');
+    }
+
+    // 3) Último recurso: escuchar Hub channel DataStore y re-query cuando haya eventos
+    try {
+      _hubSub = Amplify.Hub.listen([HubChannel.DataStore] as HubChannel<dynamic, HubEvent<dynamic>>, (HubEvent hubEvent) async {
+        debugPrint('Amplify.Hub (DataStore) evento: ${hubEvent.eventName}');
+        await _requeryAllProjects();
+      });
+      debugPrint('Usando Amplify.Hub(DataStore) para updates');
+    } catch (e) {
+      debugPrint('No se pudo subscribir a Hub DataStore: $e');
+    }
+  }
+
+  // Re-consulta completa y actualiza estado
+  Future<void> _requeryAllProjects() async {
+    try {
+      final snaps = await Amplify.DataStore.query(Project.classType);
+      if (!mounted) return;
+      setState(() {
+        proyectos = List<Project>.from(snaps);
+        cargando = false;
+      });
+      debugPrint('Requery completado: ${proyectos.length} proyectos');
+    } catch (e) {
+      debugPrint('Error requeryAllProjects: $e');
+    }
+  }
+
+  Future<void> _crearProyecto(BuildContext context) async {
+    final TextEditingController ctrl = TextEditingController();
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nuevo proyecto'),
+        content: TextField(controller: ctrl, decoration: const InputDecoration(labelText: 'Nombre')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Crear')),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+    final nombre = ctrl.text.trim();
+    if (nombre.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El nombre no puede estar vacío')));
+      return;
+    }
+
+    try {
+      final nuevo = Project(name: nombre, status: 'VIVO');
+      await Amplify.DataStore.save(nuevo);
+      debugPrint('Proyecto creado (DataStore): ${nuevo.id}');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Proyecto creado')));
+      // observe/Hub/requery se encargará de actualizar la UI
+    } catch (e) {
+      debugPrint('Error creando proyecto: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error creando proyecto')));
+    }
+  }
+
+  Future<void> _borrarProyecto(Project proyecto) async {
+    try {
+      await Amplify.DataStore.delete(proyecto);
+      debugPrint('Proyecto borrado: ${proyecto.id}');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Proyecto borrado')));
+    } catch (e) {
+      debugPrint('Error borrando proyecto: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error borrando proyecto')));
     }
   }
 
@@ -67,109 +190,62 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-      // --- HEADER PERSONALIZADO ---
       appBar: AppBar(
         backgroundColor: primaryColor,
         elevation: 4,
         automaticallyImplyLeading: false,
-        title: Row(
-          children: [
-            const Icon(Icons.park, color: Colors.white, size: 28),
-            const SizedBox(width: 8),
-            const Text(
-              'Terrasacha',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
-            ),
-          ],
-        ),
+        title: Row(children: [
+          const Icon(Icons.park, color: Colors.white, size: 28),
+          const SizedBox(width: 8),
+          const Text('Terrasacha', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
+        ]),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: Row(
-              children: [
-                const Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('Bienvenido,', style: TextStyle(color: Colors.white70, fontSize: 10)),
-                    Text('Usuario_terrasacha2026', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-                const SizedBox(width: 10),
-                CircleAvatar(
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  radius: 18,
-                  child: const Icon(Icons.person, color: Colors.white, size: 20),
-                ),
-              ],
-            ),
+            child: Row(children: [
+              const Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('Bienvenido,', style: TextStyle(color: Colors.white70, fontSize: 10)),
+                Text('Usuario_terrasacha2026', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+              ]),
+              const SizedBox(width: 10),
+              CircleAvatar(backgroundColor: Colors.white.withOpacity(0.2), radius: 18, child: const Icon(Icons.person, color: Colors.white, size: 20)),
+            ]),
           )
         ],
       ),
-
-      body: Column(
-        children: [
-          // --- TABS DE NAVEGACIÓN SUPERIOR ---
-          Container(
-            color: Colors.white,
-            child: Row(
-              children: [
-                _buildTab("Proyectos", active: true),
-                _buildTab("Salidas"),
-                _buildTab("Equipos"),
-              ],
-            ),
+      body: Column(children: [
+        Container(color: Colors.white, child: Row(children: [
+          _buildTab("Proyectos", active: true),
+          _buildTab("Salidas"),
+          _buildTab("Equipos"),
+        ])),
+        Expanded(
+          child: cargando
+              ? Center(child: CircularProgressIndicator(color: primaryColor))
+              : RefreshIndicator(
+            onRefresh: () async {
+              await _requeryAllProjects();
+            },
+            child: ListView(padding: const EdgeInsets.all(16), children: [
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                Text('Proyectos', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryColor)),
+                TextButton(onPressed: () {}, child: Text('Ver todos', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold))),
+              ]),
+              const SizedBox(height: 12),
+              if (proyectos.isEmpty)
+                const Center(child: Padding(padding: EdgeInsets.all(40.0), child: Text('No hay proyectos activos')))
+              else
+                ...proyectos.map((p) => _buildProjectCard(p)).toList(),
+              const SizedBox(height: 80),
+            ]),
           ),
-
-          Expanded(
-            child: cargando
-                ? Center(child: CircularProgressIndicator(color: primaryColor))
-                : RefreshIndicator(
-              onRefresh: _cargarDesdeNube,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  // Título de sección
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Proyectos',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: primaryColor),
-                      ),
-                      TextButton(
-                        onPressed: () {},
-                        child: Text('Ver todos', style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // --- LISTA DE TARJETAS DE PROYECTO ---
-                  if (proyectos.isEmpty)
-                    const Center(child: Padding(
-                      padding: EdgeInsets.all(40.0),
-                      child: Text('No hay proyectos activos'),
-                    ))
-                  else
-                    ...proyectos.map((p) => _buildProjectCard(p)).toList(),
-
-                  const SizedBox(height: 80), // Espacio para el FAB
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-
-      // --- BOTÓN FLOTANTE ---
+        ),
+      ]),
       floatingActionButton: FloatingActionButton(
         backgroundColor: primaryColor,
-        onPressed: () {},
+        onPressed: () => _crearProyecto(context),
         child: const Icon(Icons.add, color: Colors.white, size: 30),
       ),
-
-      // --- BARRA DE NAVEGACIÓN INFERIOR ---
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         selectedItemColor: primaryColor,
@@ -190,136 +266,71 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(color: active ? primaryColor : Colors.transparent, width: 2),
-          ),
-        ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: active ? primaryColor : Colors.grey,
-            fontWeight: active ? FontWeight.bold : FontWeight.w500,
-            fontSize: 14,
-          ),
-        ),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: active ? primaryColor : Colors.transparent, width: 2))),
+        child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: active ? primaryColor : Colors.grey, fontWeight: active ? FontWeight.bold : FontWeight.w500, fontSize: 14)),
       ),
     );
   }
 
-  Widget _buildProjectCard(dynamic proyecto) {
-    // Imagen aleatoria de naturaleza
+  Widget _buildProjectCard(Project proyecto) {
     String imageUrl = "https://images.unsplash.com/photo-1501004318641-b39e6451bec6?q=80&w=1000&auto=format&fit=crop";
-
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Imagen de cabecera de la tarjeta
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            child: Image.network(
-              imageUrl,
-              height: 140,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        proyecto['name'] ?? 'Sin nombre',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        (proyecto['status'] ?? 'VIVO').toString().toUpperCase(),
-                        style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        ClipRRect(borderRadius: const BorderRadius.vertical(top: Radius.circular(16)), child: Image.network(imageUrl, height: 140, width: double.infinity, fit: BoxFit.cover)),
+        Padding(padding: const EdgeInsets.all(16.0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Expanded(child: Text(proyecto.name ?? 'Sin nombre', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(4)), child: Text((proyecto.status ?? 'VIVO').toString().toUpperCase(), style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.bold))),
+          ]),
+          const SizedBox(height: 4),
+          const Text('Meta: ', style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const SizedBox(height: 16),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            const Text('Progreso', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+            Text('65%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryColor)),
+          ]),
+          const SizedBox(height: 6),
+          ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: 0.65, backgroundColor: Colors.grey.shade200, color: primaryColor, minHeight: 8)),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: Row(children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)), elevation: 0),
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/trees', arguments: {'proyecto_id': proyecto.id, 'proyecto_nombre': proyecto.name});
+                  },
+                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Ver Detalles', style: TextStyle(fontWeight: FontWeight.bold)), SizedBox(width: 8), Icon(Icons.arrow_forward, size: 16)]),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Meta: ',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                // Barra de progreso
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Progreso', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                    Text('65%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryColor)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: 0.65,
-                    backgroundColor: Colors.grey.shade200,
-                    color: primaryColor,
-                    minHeight: 8,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Botón de acción
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      elevation: 0,
-                    ),
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/trees',
-                        arguments: {
-                          'proyecto_id': proyecto['id'],
-                          'proyecto_nombre': proyecto['name'],
-                        },
-                      );
-                    },
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('Ver Detalles', style: TextStyle(fontWeight: FontWeight.bold)),
-                        SizedBox(width: 8),
-                        Icon(Icons.arrow_forward, size: 16),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Eliminar proyecto',
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                onPressed: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: const Text('Eliminar proyecto'),
+                      content: const Text('¿Estás seguro que quieres eliminar este proyecto?'),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('No')),
+                        ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Sí, eliminar')),
                       ],
                     ),
-                  ),
-                ),
-              ],
-            ),
+                  );
+                  if (ok == true) {
+                    await _borrarProyecto(proyecto);
+                  }
+                },
+              ),
+            ]),
           ),
-        ],
-      ),
+        ])),
+      ]),
     );
   }
 }
