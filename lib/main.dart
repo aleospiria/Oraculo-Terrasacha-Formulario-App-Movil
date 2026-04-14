@@ -23,17 +23,20 @@ Future<void> main() async {
 
 Future<void> _configureAmplify() async {
   try {
-    // 1. Agregar plugins en orden
     await Amplify.addPlugin(AmplifyAPI());
-    await Amplify.addPlugin(AmplifyDataStore(modelProvider: ModelProvider.instance));
+    await Amplify.addPlugin(
+      AmplifyDataStore(modelProvider: ModelProvider.instance),
+    );
 
-    // 2. Configurar Amplify
     await Amplify.configure(amplifyconfig);
 
-    // 3. Iniciar DataStore (opcional pero recomendado)
+    // 🔥 LIMPIAR DATASTORE LOCAL
+    await Amplify.DataStore.clear();
+
+    // Iniciar DataStore
     await Amplify.DataStore.start();
 
-    safePrint('✅ Amplify y DataStore configurados y listos');
+    safePrint('✅ Amplify y DataStore configurados y listos (limpio)');
   } on Exception catch (e) {
     safePrint('❌ Error al configurar Amplify: $e');
   }
@@ -61,4 +64,3 @@ class CapturadorApp extends StatelessWidget {
     );
   }
 }
-// si
