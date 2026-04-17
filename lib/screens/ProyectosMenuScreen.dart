@@ -7,6 +7,7 @@ import 'package:amplify_datastore/amplify_datastore.dart';
 // Ajusta el import según la ruta donde estén tus modelos generados
 import 'package:capturador_datos_offline/models/ModelProvider.dart';
 import 'package:capturador_datos_offline/models/Project.dart';
+import 'package:capturador_datos_offline/utils/inicioTareaOperador.dart';
 
 class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
@@ -208,7 +209,14 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                 Text('Usuario_terrasacha2026', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
               ]),
               const SizedBox(width: 10),
-              CircleAvatar(backgroundColor: Colors.white.withOpacity(0.2), radius: 18, child: const Icon(Icons.person, color: Colors.white, size: 20)),
+              GestureDetector(
+                onTap: () => InicioTareaOperador.navigate(context),
+                child: CircleAvatar(
+                  backgroundColor: Colors.white.withOpacity(0.2),
+                  radius: 18,
+                  child: const Icon(Icons.person, color: Colors.white, size: 20),
+                ),
+              ),
             ]),
           )
         ],
