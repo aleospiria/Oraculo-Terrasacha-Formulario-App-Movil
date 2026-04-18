@@ -1,6 +1,7 @@
 // lib/Utils/
 // .dart
 import 'package:flutter/material.dart';
+import 'package:capturador_datos_offline/screens/EjecucionRegistroScreen.dart';
 
 class InicioTareaOperador {
   static const Color primaryColor = Color(0xFF4A5C24);
@@ -222,8 +223,9 @@ class _ContenidoTarea extends StatelessWidget {
                 elevation: 2,
               ),
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Tarea iniciada')),
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => EjecucionRegistroScreen()),
                 );
               },
               child: const Text(
