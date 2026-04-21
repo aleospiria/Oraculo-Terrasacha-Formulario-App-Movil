@@ -8,6 +8,7 @@ import 'package:amplify_datastore/amplify_datastore.dart';
 import 'package:capturador_datos_offline/models/ModelProvider.dart';
 import 'package:capturador_datos_offline/models/Project.dart';
 import 'package:capturador_datos_offline/utils/inicioTareaOperador.dart';
+import 'package:capturador_datos_offline/screens/EquiposScreen.dart';
 
 class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
@@ -27,6 +28,12 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   // Colores del diseño
   final Color primaryColor = const Color(0xFF4A5C24);
   final Color backgroundColor = const Color(0xFFF7F8F6);
+
+  // Pestaña seleccionada (para marcar visualmente la activa)
+  String _selectedTab = 'Proyectos';
+
+  // Estado del bottom nav
+  int _bottomIndex = 0;
 
   @override
   void initState() {
@@ -223,9 +230,9 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
       ),
       body: Column(children: [
         Container(color: Colors.white, child: Row(children: [
-          _buildTab("Proyectos", active: true),
-          _buildTab("Salidas"),
-          _buildTab("Equipos"),
+          _buildTab("Proyectos", active: _selectedTab == 'Proyectos'),
+          _buildTab("Salidas", active: _selectedTab == 'Salidas'),
+          _buildTab("Equipos", active: _selectedTab == 'Equipos'),
         ])),
         Expanded(
           child: cargando
@@ -256,10 +263,21 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
+        currentIndex: _bottomIndex,
         selectedItemColor: primaryColor,
         unselectedItemColor: Colors.grey,
         selectedFontSize: 10,
         unselectedFontSize: 10,
+        onTap: (index) {
+          setState(() => _bottomIndex = index);
+          if (index == 0) {
+            // Al pulsar "Inicio" nos aseguramos que la pestaña superior vuelva a "Proyectos"
+            setState(() => _selectedTab = 'Proyectos');
+          } else {
+            // Aquí puedes navegar a otras pantallas si las tienes registradas
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Botón ${index} presionado')));
+          }
+        },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Mapa'),
@@ -272,10 +290,30 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
 
   Widget _buildTab(String label, {bool active = false}) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: active ? primaryColor : Colors.transparent, width: 2))),
-        child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: active ? primaryColor : Colors.grey, fontWeight: active ? FontWeight.bold : FontWeight.w500, fontSize: 14)),
+      child: GestureDetector(
+        onTap: () {
+          // Cambiamos visualmente la pestaña activa
+          setState(() => _selectedTab = label);
+
+          // Si pulsaron "Equipos", navegamos a la pantalla EquiposScreen.
+          // Cuando el usuario regrese (pop), forzamos que la pestaña vuelva a "Proyectos".
+          if (label == 'Equipos') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EquiposScreen()),
+            ).then((_) {
+              // Cuando regresen desde EquiposScreen, resetear pestaña
+              if (mounted) setState(() => _selectedTab = 'Proyectos');
+            });
+          }
+
+          // Si quieres, aquí puedes añadir lógica para "Salidas" u otras pestañas.
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: active ? primaryColor : Colors.transparent, width: 2))),
+          child: Text(label, textAlign: TextAlign.center, style: TextStyle(color: active ? primaryColor : Colors.grey, fontWeight: active ? FontWeight.bold : FontWeight.w500, fontSize: 14)),
+        ),
       ),
     );
   }
