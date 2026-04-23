@@ -1,5 +1,6 @@
 // lib/Screens/EquiposScreen.dart
 import 'package:flutter/material.dart';
+import 'package:capturador_datos_offline/screens/DetalleTareaScreen.dart';
 
 class EquiposScreen extends StatefulWidget {
   const EquiposScreen({super.key});
@@ -125,9 +126,6 @@ class _EquiposScreenState extends State<EquiposScreen> {
           setState(() => _bottomIndex = index);
 
           if (index == 0) {
-            // Volver a Proyectos: hacemos pop para regresar a la pantalla anterior (ProyectosMenuScreen).
-            // Esa pantalla (ProyectosMenuScreen) tiene un `.then(...)` en el push que forzará
-            // la pestaña superior a volver a "Proyectos" cuando se haga pop.
             Navigator.pop(context);
             return;
           }
@@ -288,9 +286,27 @@ class _EquiposScreenState extends State<EquiposScreen> {
                   ),
                 ),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('${tarea.accion} tarea de ${tarea.operador}'),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => DetalleTareaScreen(
+                        tarea: TareaDetalle(
+                          operador: tarea.operador,
+                          ubicacion: tarea.ubicacion,
+                          estado: tarea.estado,
+                          duracion: '2h 45m',           // placeholder por ahora
+                          progreso: tarea.estado == 'Completado' ? 100
+                              : tarea.estado == 'En progreso' ? 60
+                              : tarea.estado == 'Validación' ? 90
+                              : 10,
+                          checklist: const [
+                            'Herramientas verificadas',
+                            'Área de trabajo limpia',
+                            'Reporte de incidencias enviado',
+                          ],
+                          evidencias: const [],         // vacío hasta conectar backend
+                        ),
+                      ),
                     ),
                   );
                 },
