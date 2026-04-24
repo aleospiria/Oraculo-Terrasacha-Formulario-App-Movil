@@ -1,13 +1,11 @@
 // lib/Screens/DetalleTareaScreen.dart
 import 'package:flutter/material.dart';
+import 'package:capturador_datos_offline/screens/EjecucionTareaScreen.dart';
 
-// ──────────────────────────────────────────────────────────────
-//  Modelo de datos que recibe esta pantalla
-// ──────────────────────────────────────────────────────────────
 class TareaDetalle {
   final String operador;
   final String ubicacion;
-  final String estado; // 'Pendiente' | 'En progreso' | 'Validación' | 'Completado'
+  final String estado;
   final String duracion;
   final int progreso; // 0 – 100
   final List<String> checklist;
@@ -362,9 +360,16 @@ class _DetalleTareaScreenState extends State<DetalleTareaScreen>
               ),
             ),
             onPressed: () {
-              _showActionSnackbar(
-                completado ? 'Checklist validado ✓' : 'Validando checklist…',
-              );
+              if (completado) {
+                _showActionSnackbar('Checklist validado ✓');
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const EjecucionTareaScreen(),
+                  ),
+                );
+              }
             },
             child: Text(
               completado ? 'Validar checklist' : 'Marcar como completado',
