@@ -30,9 +30,6 @@ Future<void> _configureAmplify() async {
 
     await Amplify.configure(amplifyconfig);
 
-    // 🔥 LIMPIAR DATASTORE LOCAL
-    await Amplify.DataStore.clear();
-
     // Iniciar DataStore
     await Amplify.DataStore.start();
 
