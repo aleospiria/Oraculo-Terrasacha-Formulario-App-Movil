@@ -27,6 +27,9 @@
       },
       "storage": {
         "s3744e127b": {}
+      },
+      "api": {
+        "tsbeoraculoapi": {}
       }
     }
   }

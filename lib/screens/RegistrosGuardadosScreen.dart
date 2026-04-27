@@ -40,12 +40,12 @@ class _RegistrosGuardadosScreenState extends State<RegistrosGuardadosScreen> {
         // Extraer datos específicos
         String especie = rawDatas.firstWhere(
               (rd) => rd.name == 'Especie',
-          orElse: () => RawData(name: 'Especie', valueString: 'Sin especie', timestamp: null),
+          orElse: () => RawData(name: 'Especie', valueString: 'Sin especie'),
         ).valueString ?? 'Sin especie';
 
         String numArbol = rawDatas.firstWhere(
               (rd) => rd.name == 'Número de árbol',
-          orElse: () => RawData(name: 'Número de árbol', valueString: 'N/A', timestamp: null),
+          orElse: () => RawData(name: 'Número de árbol', valueString: 'N/A'),
         ).valueString ?? 'N/A';
 
         // Obtener proyecto y predio (Project) relacionados

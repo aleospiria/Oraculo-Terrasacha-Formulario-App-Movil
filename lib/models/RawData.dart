@@ -88,7 +88,7 @@ class RawData extends amplify_core.Model {
   
   const RawData._internal({required this.id, name, valueFloat, valueString, start_date, end_date, feature, tree, createdAt, updatedAt}): _name = name, _valueFloat = valueFloat, _valueString = valueString, _start_date = start_date, _end_date = end_date, _feature = feature, _tree = tree, _createdAt = createdAt, _updatedAt = updatedAt;
   
-  factory RawData({String? id, String? name, double? valueFloat, String? valueString, amplify_core.TemporalDateTime? start_date, amplify_core.TemporalDateTime? end_date, Feature? feature, Tree? tree, required amplify_core.TemporalDateTime timestamp}) {
+  factory RawData({String? id, String? name, double? valueFloat, String? valueString, amplify_core.TemporalDateTime? start_date, amplify_core.TemporalDateTime? end_date, Feature? feature, Tree? tree}) {
     return RawData._internal(
       id: id == null ? amplify_core.UUID.getUUID() : id,
       name: name,
