@@ -16,6 +16,7 @@ import 'Screens/RevisionScreen.dart';
 import 'Screens/RegistrosGuardadosScreen.dart';
 import 'theme.dart';
 import 'amplifyconfiguration.dart';
+import 'Screens/RegistroIncidenciaScreen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -108,6 +109,7 @@ class CapturadorApp extends StatelessWidget {
         '/sincronizacion': (context) => const SincronizacionScreen(),
         '/revision':       (context) => const RevisionScreen(),
         '/registros':      (context) => const RegistrosGuardadosScreen(),
+        '/incidencias': (context) => const RegistroIncidenciaScreen(),
       },
     );
   }

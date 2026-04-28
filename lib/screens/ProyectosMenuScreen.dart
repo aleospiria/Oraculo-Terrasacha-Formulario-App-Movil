@@ -337,6 +337,8 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
           setState(() => _bottomIndex = index);
           if (index == 0) {
             setState(() => _selectedTab = 'Proyectos');
+          } else if (index == 2) {
+            Navigator.pushNamed(context, '/incidencias');
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Botón $index presionado')),
