@@ -1,6 +1,7 @@
 // main.dart
 import 'dart:async';
 import 'package:capturador_datos_offline/screens/PrediosMenuScreen.dart';
+import 'package:capturador_datos_offline/screens/ReportarIncidenciaScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_api/amplify_api.dart';
@@ -110,6 +111,7 @@ class CapturadorApp extends StatelessWidget {
         '/revision':       (context) => const RevisionScreen(),
         '/registros':      (context) => const RegistrosGuardadosScreen(),
         '/incidencias': (context) => const RegistroIncidenciaScreen(),
+        '/reportar-incidencia': (context) => const ReportarIncidenciaScreen(),
       },
     );
   }

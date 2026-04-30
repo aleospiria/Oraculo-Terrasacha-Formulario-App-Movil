@@ -506,137 +506,148 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen>
   Widget _buildIncidenciaCard(Incidencia inc) {
     final nivelColor = _colorNivel(inc.nivel);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: IntrinsicHeight(
-        child: Row(
-          children: [
-            // Barra lateral de color
-            Container(
-              width: 5,
-              decoration: BoxDecoration(
-                color: nivelColor,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(14),
-                  bottomLeft: Radius.circular(14),
+    return GestureDetector(
+      onTap: () async {
+        final resultado = await Navigator.pushNamed(
+          context,
+          '/reportar-incidencia',
+        );
+        if (resultado == true && mounted) {
+          setState(() {});
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // Barra lateral de color
+              Container(
+                width: 5,
+                decoration: BoxDecoration(
+                  color: nivelColor,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(14),
+                    bottomLeft: Radius.circular(14),
+                  ),
                 ),
               ),
-            ),
 
-            // Contenido
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Cabecera: nivel + tiempo
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(_iconNivel(inc.nivel),
-                                color: nivelColor, size: 18),
-                            const SizedBox(width: 6),
-                            Text(
-                              _labelNivel(inc.nivel),
-                              style: TextStyle(
-                                color: nivelColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
+              // Contenido
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Cabecera: nivel + tiempo
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(_iconNivel(inc.nivel),
+                                  color: nivelColor, size: 18),
+                              const SizedBox(width: 6),
+                              Text(
+                                _labelNivel(inc.nivel),
+                                style: TextStyle(
+                                  color: nivelColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          _tiempoRelativo(inc.fechaCreacion),
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Descripción
-                    Text(
-                      inc.descripcion,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black87,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-
-                    // Badge estado + botón cambiar estado
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _colorEstado(inc.estado).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            _labelEstado(inc.estado),
+                          Text(
+                            _tiempoRelativo(inc.fechaCreacion),
                             style: TextStyle(
-                              color: _colorEstado(inc.estado),
-                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[400],
                               fontSize: 12,
                             ),
                           ),
-                        ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
 
-                        // Botón para avanzar estado (solo si no está resuelta)
-                        if (inc.estado != EstadoIncidencia.resuelta)
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 4),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      // Descripción
+                      Text(
+                        inc.descripcion,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.black87,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Badge estado + botón cambiar estado
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _colorEstado(inc.estado).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
                             ),
-                            onPressed: () {
-                              setState(() {
-                                inc.estado =
-                                inc.estado == EstadoIncidencia.abierta
-                                    ? EstadoIncidencia.enProceso
-                                    : EstadoIncidencia.resuelta;
-                              });
-                            },
                             child: Text(
-                              inc.estado == EstadoIncidencia.abierta
-                                  ? 'Marcar en proceso →'
-                                  : 'Marcar resuelta →',
+                              _labelEstado(inc.estado),
                               style: TextStyle(
-                                color: primaryColor,
+                                color: _colorEstado(inc.estado),
+                                fontWeight: FontWeight.bold,
                                 fontSize: 12,
-                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                      ],
-                    ),
-                  ],
+
+                          // Botón para avanzar estado (solo si no está resuelta)
+                          if (inc.estado != EstadoIncidencia.resuelta)
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  inc.estado =
+                                  inc.estado == EstadoIncidencia.abierta
+                                      ? EstadoIncidencia.enProceso
+                                      : EstadoIncidencia.resuelta;
+                                });
+                              },
+                              child: Text(
+                                inc.estado == EstadoIncidencia.abierta
+                                    ? 'Marcar en proceso →'
+                                    : 'Marcar resuelta →',
+                                style: TextStyle(
+                                  color: primaryColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
