@@ -2,6 +2,8 @@
 import 'package:flutter/material.dart';
 import 'package:capturador_datos_offline/Screens/ProyectosMenuScreen.dart';
 
+import 'TareasScreen.dart';
+
 class PanelControlScreen extends StatefulWidget {
   const PanelControlScreen({super.key});
 
@@ -272,11 +274,11 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
         onTap: (index) {
           setState(() => _bottomIndex = index);
           if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => const ProyectosMenuScreen()),
-            ).then((_) => setState(() => _bottomIndex = 0));
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const ProyectosMenuScreen()));
+          } else if (index == 2) {
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const TareasScreen()));
           } else if (index != 0) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
