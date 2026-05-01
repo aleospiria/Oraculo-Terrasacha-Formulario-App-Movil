@@ -1,5 +1,6 @@
 // main.dart
 import 'dart:async';
+import 'package:capturador_datos_offline/screens/PanelControlScreen.dart';
 import 'package:capturador_datos_offline/screens/PrediosMenuScreen.dart';
 import 'package:capturador_datos_offline/screens/ReportarIncidenciaScreen.dart';
 import 'package:flutter/material.dart';
@@ -100,8 +101,9 @@ class CapturadorApp extends StatelessWidget {
       title: 'Terrasacha - Captura de Datos',
       debugShowCheckedModeBanner: false,
       theme: terrasachaTheme,
-      initialRoute: '/proyectos',
+      initialRoute: '/home',
       routes: {
+        '/home':      (context) => const PanelControlScreen(),
         '/proyectos':      (context) => const ProyectosMenuScreen(),
         '/predios':        (context) => const PrediosMenuScreen(),
         '/parcelas':       (context) => const ParcelasMenuScreen(),
