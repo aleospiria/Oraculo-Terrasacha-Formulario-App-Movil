@@ -1,7 +1,9 @@
 // lib/Screens/PanelControlScreen.dart
 import 'package:flutter/material.dart';
 import 'package:capturador_datos_offline/Screens/ProyectosMenuScreen.dart';
+import 'package:capturador_datos_offline/screens/CreacionPlanScreen.dart';
 
+import 'GestionUsuariosScreen.dart';
 import 'TareasScreen.dart';
 
 class PanelControlScreen extends StatefulWidget {
@@ -173,8 +175,9 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                 Expanded(
                   child: GestureDetector(
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Crear nuevo plan')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const CreacionPlanScreen()),
                       );
                     },
                     child: Container(
@@ -221,8 +224,9 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                     icono: Icons.group_outlined,
                     label: 'Gestionar\nusuarios',
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Gestionar usuarios')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const GestionUsuariosScreen()),
                       );
                     },
                   ),
