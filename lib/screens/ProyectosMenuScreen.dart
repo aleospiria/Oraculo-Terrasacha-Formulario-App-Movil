@@ -2,9 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
-import 'package:amplify_datastore/amplify_datastore.dart';
 
-import 'package:capturador_datos_offline/models/ModelProvider.dart';
 import 'package:capturador_datos_offline/models/Project.dart';
 import 'package:capturador_datos_offline/utils/inicioTareaOperador.dart';
 import 'package:capturador_datos_offline/screens/EquiposScreen.dart';
@@ -20,16 +18,12 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   List<Project> proyectos = [];
   bool cargando = true;
 
-  StreamSubscription<dynamic>? _observeSub;
-  StreamSubscription<dynamic>? _hubSub;
-
   final Color primaryColor = const Color(0xFF4A5C24);
   final Color backgroundColor = const Color(0xFFF7F8F6);
 
   String _selectedTab = 'Proyectos';
   int _bottomIndex = 0;
 
-  // Imágenes de naturaleza/bosque — una por índice derivado del ID del proyecto
   static const List<String> _projectImages = [
     'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&auto=format&fit=crop',
     'https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?w=800&auto=format&fit=crop',
@@ -39,102 +33,57 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
     'https://images.unsplash.com/photo-1511497584788-876760111969?w=800&auto=format&fit=crop',
   ];
 
-  /// Devuelve siempre la misma imagen para el mismo proyecto (basado en su ID)
   String _imageForProject(Project proyecto) {
     final hash = proyecto.id.codeUnits.fold<int>(0, (sum, c) => sum + c);
     return _projectImages[hash % _projectImages.length];
   }
 
+  StreamSubscription? _subscription;
+
   @override
   void initState() {
     super.initState();
-    _initDataStoreListeners();
-    _initialLoad();
+    _cargarProyectos();
   }
 
   @override
   void dispose() {
-    _observeSub?.cancel();
-    _hubSub?.cancel();
+    _subscription?.cancel();
     super.dispose();
   }
 
-  Future<void> _initialLoad() async {
+  // observeQuery() es mejor que query() directo porque:
+  // 1. Espera a que los datos estén realmente en SQLite
+  // 2. Se actualiza automáticamente cuando llegan nuevos datos
+  // 3. Evita condiciones de carrera con la sincronización
+  Future<void> _cargarProyectos() async {
     try {
-      final items = await Amplify.DataStore.query(Project.classType);
-      if (!mounted) return;
-      setState(() {
-        proyectos = List<Project>.from(items);
-        cargando = false;
-      });
-    } catch (e) {
-      debugPrint('Error en initialLoad: $e');
-      if (mounted) setState(() => cargando = false);
-    }
-  }
-
-  void _initDataStoreListeners() {
-    // 1) observeQuery (gen2)
-    try {
-      final dynamic obsQueryStream =
-      Amplify.DataStore.observeQuery(Project.classType);
-      if (obsQueryStream is Stream) {
-        _observeSub = obsQueryStream.listen((dynamic snapshot) {
-          try {
-            final dynamic itemsDyn = (snapshot as dynamic).items;
-            if (itemsDyn is List) {
-              final list = itemsDyn.map((e) => e as Project).toList();
-              if (!mounted) return;
-              setState(() {
-                proyectos = list;
-                cargando = false;
-              });
-              return;
-            }
-          } catch (_) {}
-          _requeryAllProjects();
-        }, onError: (err) => debugPrint('observeQuery error: $err'));
-        return;
-      }
-    } catch (e) {
-      debugPrint('observeQuery no disponible: $e');
-    }
-
-    // 2) Fallback: observe (gen1)
-    try {
-      final dynamic obsStream = Amplify.DataStore.observe(Project.classType);
-      if (obsStream is Stream) {
-        _observeSub = obsStream.listen(
-              (_) => _requeryAllProjects(),
-          onError: (err) => debugPrint('observe error: $err'),
-        );
-        return;
-      }
-    } catch (e) {
-      debugPrint('DataStore.observe no disponible: $e');
-    }
-
-    // 3) Último recurso: Hub
-    try {
-      _hubSub = Amplify.Hub.listen(
-        [HubChannel.DataStore] as HubChannel<dynamic, HubEvent<dynamic>>,
-            (HubEvent hubEvent) async => await _requeryAllProjects(),
+      debugPrint('🔍 Cargando proyectos con observeQuery...');
+      
+      // Cancelar suscripción previa si existe
+      _subscription?.cancel();
+      
+      _subscription = Amplify.DataStore.observeQuery(Project.classType).listen(
+        (snapshot) {
+          debugPrint('📦 observeQuery snapshot: ${snapshot.items.length} proyectos');
+          debugPrint('   Is Synced: ${snapshot.isSynced}');
+          for (final p in snapshot.items) {
+            debugPrint('  → ${p.id} | ${p.name} | ${p.status}');
+          }
+          if (!mounted) return;
+          setState(() {
+            proyectos = List<Project>.from(snapshot.items);
+            cargando = false;
+          });
+        },
+        onError: (e) {
+          debugPrint('❌ Error en observeQuery: $e');
+          if (mounted) setState(() => cargando = false);
+        },
       );
     } catch (e) {
-      debugPrint('No se pudo subscribir a Hub DataStore: $e');
-    }
-  }
-
-  Future<void> _requeryAllProjects() async {
-    try {
-      final snaps = await Amplify.DataStore.query(Project.classType);
-      if (!mounted) return;
-      setState(() {
-        proyectos = List<Project>.from(snaps);
-        cargando = false;
-      });
-    } catch (e) {
-      debugPrint('Error requeryAllProjects: $e');
+      debugPrint('❌ Error configurando observeQuery: $e');
+      if (mounted) setState(() => cargando = false);
     }
   }
 
@@ -175,9 +124,10 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
     }
 
     try {
-      final nuevo = Project(name: nombre, status: 'VIVO');
+      final nuevo = Project(name: nombre, status: 'activo');
       await Amplify.DataStore.save(nuevo);
-      debugPrint('Proyecto creado: ${nuevo.id}');
+      debugPrint('Proyecto creado: ${nuevo.id} | status: activo');
+      // No hace necesario recargar - observeQuery se actualiza solo
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Proyecto creado')),
@@ -196,6 +146,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   Future<void> _borrarProyecto(Project proyecto) async {
     try {
       await Amplify.DataStore.delete(proyecto);
+      await _cargarProyectos(); // refrescar lista
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Proyecto borrado')),
@@ -257,8 +208,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                 child: CircleAvatar(
                   backgroundColor: Colors.white.withOpacity(0.2),
                   radius: 18,
-                  child:
-                  const Icon(Icons.person, color: Colors.white, size: 20),
+                  child: const Icon(Icons.person, color: Colors.white, size: 20),
                 ),
               ),
             ]),
@@ -278,7 +228,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
           child: cargando
               ? Center(child: CircularProgressIndicator(color: primaryColor))
               : RefreshIndicator(
-            onRefresh: _requeryAllProjects,
+            onRefresh: _cargarProyectos,
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -294,7 +244,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {},
+                      onPressed: _cargarProyectos,
                       child: Text(
                         'Ver todos',
                         style: TextStyle(
@@ -347,8 +297,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
         },
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.map_outlined), label: 'Mapa'),
+          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Mapa'),
           BottomNavigationBarItem(
               icon: Icon(Icons.analytics_outlined), label: 'Reportes'),
           BottomNavigationBarItem(
@@ -416,10 +365,8 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Imagen consistente por proyecto (derivada del ID)
           ClipRRect(
-            borderRadius:
-            const BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Image.network(
               imageUrl,
               height: 140,
@@ -432,13 +379,11 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
               ),
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Nombre + badge estado
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -467,10 +412,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 20),
-
-                // Acciones
                 Row(children: [
                   Expanded(
                     child: ElevatedButton(
@@ -486,7 +428,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                       onPressed: () {
                         Navigator.pushNamed(
                           context,
-                          '/predios', // pantalla de Predios (Topology nivel 1)
+                          '/predios',
                           arguments: {
                             'proyecto_id': proyecto.id,
                             'proyecto_nombre': proyecto.name,
