@@ -1,8 +1,13 @@
 // lib/Screens/PanelControlScreen.dart
+import 'dart:async';
+import 'package:amplify_api/amplify_api.dart';
+import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:capturador_datos_offline/Screens/ProyectosMenuScreen.dart';
 import 'package:capturador_datos_offline/screens/CreacionPlanScreen.dart';
+import 'package:capturador_datos_offline/main.dart';
 
+import '../models/Project.dart';
 import 'GestionUsuariosScreen.dart';
 import 'TareasScreen.dart';
 
@@ -19,11 +24,68 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
   final Color cardColor = const Color(0xFFEEF2E6);
 
   int _bottomIndex = 0;
+  bool _sincronizando = true;
+  int _proyectosActivos = 0;  // Se carga dinámicamente
+  int _tareasEnCurso = 0;
+  String _ultimaSincronizacion = '--:--';
+  StreamSubscription? _syncSubscription;
 
-  // Datos de prueba — se reemplazarán con queries a DataStore
-  final int _proyectosActivos = 12;
-  final int _tareasEnCurso = 84;
-  final String _ultimaSincronizacion = '10:30 AM';
+  @override
+  void initState() {
+    super.initState();
+    _esperarSincronizacion();
+    _cargarProyectosCount();  // Carga el número real de proyectos
+  }
+
+  /// Query directa con Amplify API para obtener el count de proyectos activos
+  /// Sin esperar la sincronización completa de DataStore
+  Future<void> _cargarProyectosCount() async {
+    try {
+      final request = ModelQueries.list(Project.classType);
+      final response = await Amplify.API.query(request: request).response;
+
+      // Verificar errores
+      if (response.errors.isNotEmpty) {
+        debugPrint('❌ Error cargando proyectos: ${response.errors}');
+        return;
+      }
+
+      final items = response.data?.items;
+      if (items != null) {
+        // Filtrar solo los activos (status == 'activo')
+        final activos = items.where((p) => p?.status == 'activo').length;
+        if (mounted) {
+          setState(() {
+            _proyectosActivos = activos;
+            _ultimaSincronizacion = DateTime.now().toString().substring(11, 16);
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error en query de proyectos: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _syncSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _esperarSincronizacion() async {
+    // Si ya está listo, continuar inmediatamente
+    if (isSyncReady) {
+      setState(() => _sincronizando = false);
+      return;
+    }
+
+    // Escuchar el stream hasta que esté listo
+    _syncSubscription = syncReadyStream.listen((ready) {
+      if (ready && mounted) {
+        setState(() => _sincronizando = false);
+      }
+    });
+  }
 
   final List<Map<String, dynamic>> _proyectosRecientes = [
     {
@@ -48,6 +110,37 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Mostrar pantalla de carga mientras se sincroniza
+    if (_sincronizando) {
+      return Scaffold(
+        backgroundColor: backgroundColor,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(color: primaryColor),
+              const SizedBox(height: 24),
+              const Text(
+                'Sincronizando datos...',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Descargando proyectos desde la nube',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(

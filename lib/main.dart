@@ -20,6 +20,12 @@ import 'theme.dart';
 import 'amplifyconfiguration.dart';
 import 'Screens/RegistroIncidenciaScreen.dart';
 
+// StreamController para notificar cuando la sincronización esté lista
+final _syncReadyController = StreamController<bool>.broadcast();
+Stream<bool> get syncReadyStream => _syncReadyController.stream;
+bool _isSyncReady = false;
+bool get isSyncReady => _isSyncReady;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _configureAmplify();
@@ -36,12 +42,10 @@ Future<void> _configureAmplify() async {
     await Amplify.configure(amplifyconfig);
     await Amplify.DataStore.start();
 
-    // Esperar a que DataStore termine de bajar todos los datos de la nube
-    // antes de mostrar la UI. Sin esto, los queries llegan cuando la DB
-    // local todavía está vacía o a medias.
-    await _esperarSyncCompleto();
+    // Escuchar eventos de sincronización SIN bloquear el startup
+    _escucharSincronizacion();
 
-    safePrint('✅ Amplify y DataStore listos y sincronizados');
+    safePrint('✅ Amplify inicializado, esperando sincronización...');
   } on AmplifyAlreadyConfiguredException {
     safePrint('⚠️ Amplify ya estaba configurado');
   } on Exception catch (e) {
@@ -49,47 +53,27 @@ Future<void> _configureAmplify() async {
   }
 }
 
-/// Espera el evento 'ready' de DataStore, que indica que la sincronización
-/// inicial con la nube terminó y la DB local tiene todos los datos.
-/// Si pasan 30s sin recibir el evento (sin internet, etc.), continúa igual.
-Future<void> _esperarSyncCompleto() async {
-  final completer = Completer<void>();
-  StreamSubscription? sub;
-
-  sub = Amplify.Hub.listen(HubChannel.DataStore, (event) {
+/// Escucha los eventos de DataStore y notifica cuando syncQueriesReady llega
+void _escucharSincronizacion() {
+  Amplify.Hub.listen(HubChannel.DataStore, (event) {
     safePrint('📡 DataStore Hub event: ${event.eventName}');
 
-    // Esperamos que Project termine de sincronizar
-    if (event.eventName == 'modelSynced') {
-      final payload = event.payload;
-      if (payload != null) {
-        final modelName = payload.toString();
-        safePrint('📦 Model synced: $modelName');
-        if (modelName.contains('Project')) {
-          safePrint('✅ Project sincronizado — cargando UI');
-          sub?.cancel();
-          if (!completer.isCompleted) completer.complete();
-        }
+    if (event.eventName == 'syncQueriesReady') {
+      safePrint('✅ syncQueriesReady — todos los modelos disponibles en local');
+      _isSyncReady = true;
+      if (!_syncReadyController.isClosed) {
+        _syncReadyController.add(true);
       }
     }
 
-    // Fallback: si llega ready de todas formas
     if (event.eventName == 'ready') {
-      sub?.cancel();
-      if (!completer.isCompleted) completer.complete();
+      safePrint('✅ ready — DataStore completamente sincronizado');
+      _isSyncReady = true;
+      if (!_syncReadyController.isClosed) {
+        _syncReadyController.add(true);
+      }
     }
   });
-
-  // Timeout de 30s por seguridad
-  Future.delayed(const Duration(seconds: 30), () {
-    if (!completer.isCompleted) {
-      safePrint('⚠️ Timeout, continuando...');
-      sub?.cancel();
-      completer.complete();
-    }
-  });
-
-  await completer.future;
 }
 
 class CapturadorApp extends StatelessWidget {
