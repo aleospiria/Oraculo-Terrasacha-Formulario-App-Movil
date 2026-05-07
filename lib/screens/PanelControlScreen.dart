@@ -72,19 +72,38 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
     super.dispose();
   }
 
+  /// Espera la sincronización con timeout y verificación de datos locales
+  /// Si ya hay datos en local, muestra la UI inmediatamente (offline-first)
   Future<void> _esperarSincronizacion() async {
-    // Si ya está listo, continuar inmediatamente
-    if (isSyncReady) {
-      setState(() => _sincronizando = false);
+    // Si ya hay datos locales, mostrar UI inmediatamente
+    if (hasLocalData) {
+      safePrint('✅ Datos locales disponibles - mostrando UI inmediatamente');
+      if (mounted) setState(() => _sincronizando = false);
       return;
     }
 
-    // Escuchar el stream hasta que esté listo
+    // Si ya está sincronizado, continuar
+    if (isSyncReady) {
+      if (mounted) setState(() => _sincronizando = false);
+      return;
+    }
+
+    // Escuchar el stream con timeout de 5 segundos
+    bool completado = false;
+    
     _syncSubscription = syncReadyStream.listen((ready) {
-      if (ready && mounted) {
+      if (ready && mounted && !completado) {
+        completado = true;
         setState(() => _sincronizando = false);
       }
     });
+
+    // Timeout: si en 5s no llega syncQueriesReady, mostrar UI igual
+    await Future.delayed(const Duration(seconds: 5));
+    if (!completado && mounted) {
+      safePrint('⚠️ Timeout de sincronización - mostrando UI con datos disponibles');
+      setState(() => _sincronizando = false);
+    }
   }
 
   final List<Map<String, dynamic>> _proyectosRecientes = [

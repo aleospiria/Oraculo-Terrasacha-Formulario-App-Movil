@@ -26,6 +26,10 @@ Stream<bool> get syncReadyStream => _syncReadyController.stream;
 bool _isSyncReady = false;
 bool get isSyncReady => _isSyncReady;
 
+// Verificar si ya se sincronizó al menos una vez (datos en local)
+bool _hasLocalData = false;
+bool get hasLocalData => _hasLocalData;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await _configureAmplify();
@@ -42,14 +46,31 @@ Future<void> _configureAmplify() async {
     await Amplify.configure(amplifyconfig);
     await Amplify.DataStore.start();
 
+    // Verificar si ya hay datos en local (offline-first)
+    await _verificarDatosLocales();
+
     // Escuchar eventos de sincronización SIN bloquear el startup
     _escucharSincronizacion();
 
-    safePrint('✅ Amplify inicializado, esperando sincronización...');
+    safePrint('✅ Amplify inicializado');
   } on AmplifyAlreadyConfiguredException {
     safePrint('⚠️ Amplify ya estaba configurado');
   } on Exception catch (e) {
     safePrint('❌ Error al configurar Amplify: $e');
+  }
+}
+
+/// Verifica si ya hay datos en SQLite (sincronización previa completada)
+Future<void> _verificarDatosLocales() async {
+  try {
+    final proyectos = await Amplify.DataStore.query(Project.classType);
+    _hasLocalData = proyectos.isNotEmpty;
+    safePrint(_hasLocalData 
+      ? '✅ Datos locales encontrados: ${proyectos.length} proyectos' 
+      : '⚠️ No hay datos locales - primera sincronización pendiente');
+  } catch (e) {
+    safePrint('⚠️ Error verificando datos locales: $e');
+    _hasLocalData = false;
   }
 }
 
