@@ -67,7 +67,6 @@ class _ParcelasMenuScreenState extends State<ParcelasMenuScreen> {
         final especieTemp = RawData(
           name: "Especie",
           valueString: resultado['especie'],
-          timestamp: TemporalDateTime.now(),
         );
 
 // Asociar con Tree
