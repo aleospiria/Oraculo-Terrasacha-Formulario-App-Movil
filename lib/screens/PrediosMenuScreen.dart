@@ -1,13 +1,12 @@
 // lib/screens/PrediosMenuScreen.dart
 import 'dart:async';
+import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 
 import 'package:capturador_datos_offline/models/ModelProvider.dart';
 import 'package:capturador_datos_offline/models/Topology.dart';
 import 'package:capturador_datos_offline/models/Project.dart';
-import 'package:capturador_datos_offline/models/Tree.dart';
-import 'package:capturador_datos_offline/models/TopologyTree.dart';
 
 class PrediosMenuScreen extends StatefulWidget {
   const PrediosMenuScreen({super.key});
@@ -50,7 +49,7 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
     super.dispose();
   }
 
-  /// Query simple con debug masivo para ver qué hay en SQLite
+  /// Carga con polling - espera a que DataStore tenga datos
   Future<void> _cargarPredios() async {
     if (!mounted) return;
     setState(() => cargando = true);
@@ -59,40 +58,34 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
       debugPrint('🔍 ========== INICIO CARGA PREDIOS ==========');
       debugPrint('🔍 Proyecto ID: $proyectoId');
 
-      // Contar TODOS los modelos en SQLite
-      final todosTopologies = await Amplify.DataStore.query(Topology.classType);
-      final todosTrees = await Amplify.DataStore.query(Tree.classType);
-      final todosTopologyTrees = await Amplify.DataStore.query(TopologyTree.classType);
-      
-      debugPrint('📊 RESUMEN SQLite:');
-      debugPrint('   - Topology: ${todosTopologies.length} registros');
-      debugPrint('   - Tree: ${todosTrees.length} registros');
-      debugPrint('   - TopologyTree: ${todosTopologyTrees.length} registros');
-
-      // Ver cada Topology en detalle
-      debugPrint('📋 DETALLE TOPOLOGIES:');
-      for (final t in todosTopologies) {
-        debugPrint('   → ID: ${t.id}');
-        debugPrint('     name: ${t.name}');
-        debugPrint('     project.id: ${t.project?.id}');
-        debugPrint('     topologyParent: ${t.topologyParent?.id ?? "null"}');
-        debugPrint('     status: ${t.status}');
+      // Polling: intentar hasta 10 veces con 1s de espera
+      List<Topology> todosTopologiesList = [];
+      for (int i = 0; i < 10; i++) {
+        todosTopologiesList = await Amplify.DataStore.query(Topology.classType);
+        if (todosTopologiesList.isNotEmpty) {
+          debugPrint('✅ Datos obtenidos en intento ${i + 1}');
+          break;
+        }
+        debugPrint('⏳ Esperando datos... intento ${i + 1}/10');
+        await Future.delayed(const Duration(seconds: 1));
       }
 
-      // Filtrar roots del proyecto seleccionado
-      final roots = todosTopologies
+      debugPrint('📊 Topology en SQLite: ${todosTopologiesList.length} registros');
+
+      // Filtrar por proyecto en memoria
+      final roots = todosTopologiesList
           .where((t) => t.project?.id == proyectoId && t.topologyParent == null)
           .toList();
 
       debugPrint('🌳 Predios raíz encontrados: ${roots.length}');
       for (final p in roots) {
-        debugPrint('  → ${p.name} (${p.id})');
+        debugPrint('  → ${p.name} (${p.id}) | polygon: ${p.polygon != null ? "tiene" : "sin"}');
       }
 
       // Calcular cantidad de parcelas por predio
       final Map<String, int> counts = {};
       for (final predio in roots) {
-        final hijos = todosTopologies
+        final hijos = todosTopologiesList
             .where((t) => t.topologyParent?.id == predio.id)
             .length;
         counts[predio.id] = hijos;
