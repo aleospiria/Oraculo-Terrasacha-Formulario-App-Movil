@@ -113,7 +113,36 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     });
   }
 
-  // ── Indicador de pasos ────────────────────────────────────────────────────
+  // ── Encabezado unificado (título + indicador de pasos) ────────────────────
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+      child: Column(
+        children: [
+          Text(
+            'Creación de Plan de Campo',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: primaryColor,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Paso $_pasoActual de $_totalPasos',
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
+          ),
+          const SizedBox(height: 12),
+          _buildIndicadorPasos(),
+          const SizedBox(height: 8), // espacio antes del contenido
+        ],
+      ),
+    );
+  }
+
+  // ── Indicador de pasos (círculos) ─────────────────────────────────────────
 
   Widget _buildIndicadorPasos() {
     return Row(
@@ -162,26 +191,14 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     );
   }
 
-  // ── Paso 1: Info básica ───────────────────────────────────────────────────
+  // ── Paso 1: Info básica (ahora sin título repetido) ───────────────────────
 
   Widget _buildPaso1() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Paso 1 de 4',
-            style: TextStyle(
-                fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Configura los elementos necesarios para la operación en campo.',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.4),
-          ),
-          const SizedBox(height: 28),
-
           const Text('Nombre del plan',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           const SizedBox(height: 8),
@@ -190,7 +207,6 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
             decoration: _inputDecoration('Ingresa el nombre del plan'),
           ),
           const SizedBox(height: 20),
-
           const Text('Ubicación',
               style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
           const SizedBox(height: 8),
@@ -216,7 +232,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: TextField(
             onChanged: (v) => setState(() => _busquedaUsuario = v),
             decoration: _inputDecoration('Buscar usuarios',
@@ -387,7 +403,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     );
   }
 
-  // ── Paso 3: Requerimientos ────────────────────────────────────────────────
+  // ── Paso 3: Requerimientos (la cabecera verde sigue siendo parte del contenido) ──
 
   Widget _buildPaso3() {
     return SingleChildScrollView(
@@ -411,9 +427,6 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 18)),
-                SizedBox(height: 2),
-                Text('(Paso 3 de 4)',
-                    style: TextStyle(color: Colors.white70, fontSize: 13)),
               ],
             ),
           ),
@@ -521,7 +534,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     );
   }
 
-  // ── Paso 4: Topología ─────────────────────────────────────────────────────
+  // ── Paso 4: Topología (se quitaron títulos repetidos) ─────────────────────
 
   Widget _buildPaso4() {
     return SingleChildScrollView(
@@ -529,16 +542,6 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Configuración de Topología',
-            style: TextStyle(
-                fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
-          ),
-          const SizedBox(height: 4),
-          Text('Paso 4 de 4',
-              style: TextStyle(color: Colors.grey[500], fontSize: 14)),
-          const SizedBox(height: 40),
-
           Row(
             children: [
               Expanded(
@@ -727,20 +730,21 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     );
   }
 
-  // ── Build principal ───────────────────────────────────────────────────────
+  // ── Build principal (con header y footer unificados) ──────────────────────
 
   @override
   Widget build(BuildContext context) {
     final esResumen = _pasoActual == 5;
+    // Progreso lineal: paso 1 = 0.25, paso 2 = 0.5, paso 3 = 0.75, paso 4 = 1.0
+    final double progressValue = esResumen ? 1.0 : (_pasoActual / _totalPasos);
 
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: esResumen ? Colors.white : backgroundColor,
+        backgroundColor: backgroundColor,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios,
-              color: esResumen ? Colors.black87 : primaryColor, size: 18),
+          icon: Icon(Icons.arrow_back_ios, color: primaryColor, size: 18),
           onPressed: () {
             if (_pasoActual > 1) {
               _retroceder();
@@ -749,85 +753,19 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
             }
           },
         ),
-        title: esResumen
-            ? const Text(
-          'Resumen y Confirmación Final',
-          style: TextStyle(
+        title: Text(
+          esResumen ? 'Resumen' : 'Crear Plan de Campo',
+          style: const TextStyle(
               color: Colors.black87,
               fontWeight: FontWeight.bold,
               fontSize: 16),
-        )
-            : _pasoActual == 2
-            ? const Text(
-          'Asignación de Equipo y Mediciones',
-          style: TextStyle(
-              color: Colors.black87,
-              fontWeight: FontWeight.bold,
-              fontSize: 16),
-        )
-            : null,
-        // Barra de progreso en resumen
-        bottom: esResumen
-            ? PreferredSize(
-          preferredSize: const Size.fromHeight(4),
-          child: LinearProgressIndicator(
-            value: 1.0,
-            backgroundColor: Colors.grey[200],
-            valueColor:
-            AlwaysStoppedAnimation<Color>(primaryColor),
-            minHeight: 4,
-          ),
-        )
-            : null,
+        ),
       ),
       body: Column(
         children: [
-          // Cabecera pasos 1 y 4 (sin el indicador en paso 2 y 3 que tiene su propio header)
-          if (!esResumen && _pasoActual != 2) ...[
-            if (_pasoActual != 3)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                child: Column(
-                  children: [
-                    Text(
-                      'Creación de Plan de Campo',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Este plan es fundamental para organizar y asegurar el éxito de las operaciones en campo. Define los recursos y objetivos clave.',
-                      style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 13,
-                          height: 1.4),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    _buildIndicadorPasos(),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              ),
-            if (_pasoActual == 3)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                child: _buildIndicadorPasos(),
-              ),
-          ],
-          if (!esResumen && _pasoActual == 2)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Text(
-                '(Paso 2 de 4)',
-                style:
-                TextStyle(color: Colors.grey[500], fontSize: 13),
-              ),
-            ),
+          // Encabezado unificado (título, indicador de pasos, etc.)
+          // Solo se muestra en los pasos 1-4, no en el resumen
+          if (!esResumen) _buildHeader(),
 
           // Contenido del paso actual
           Expanded(
@@ -847,39 +785,54 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
             ),
           ),
 
-          // Botón inferior
+          // Pie unificado: barra de progreso + botón
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  elevation: 0,
+            child: Column(
+              children: [
+                // Barra de progreso lineal según el paso
+                LinearProgressIndicator(
+                  value: progressValue,
+                  backgroundColor: Colors.grey[200],
+                  valueColor: AlwaysStoppedAnimation<Color>(primaryColor),
+                  minHeight: 6,
+                  borderRadius: BorderRadius.circular(3),
                 ),
-                onPressed: esResumen ? _crearPlan : _continuar,
-                child: Text(
-                  esResumen ? 'Crear plan' : 'Continuar',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 16),
+                const SizedBox(height: 16),
+
+                // Botón de acción
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: esResumen ? _crearPlan : _continuar,
+                    child: Text(
+                      esResumen ? 'Crear plan' : 'Continuar',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
                 ),
-              ),
+
+                // Texto adicional solo en el resumen
+                if (esResumen)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'Terrasacha, 2024',
+                      style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                    ),
+                  ),
+              ],
             ),
           ),
-
-          if (esResumen)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Text(
-                'Terrasacha, 2024',
-                style:
-                TextStyle(color: Colors.grey[400], fontSize: 12),
-              ),
-            ),
         ],
       ),
     );
