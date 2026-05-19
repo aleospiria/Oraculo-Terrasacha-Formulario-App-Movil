@@ -8,7 +8,7 @@ import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:amplify_datastore/amplify_datastore.dart';
 import 'models/ModelProvider.dart';
-
+import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'Screens/CapturaDatosScreen.dart';
 import 'Screens/ParcelasMenuScreen.dart';
 import 'Screens/ProyectosMenuScreen.dart';
@@ -43,6 +43,7 @@ Future<void> _configureAmplify() async {
       AmplifyDataStore(modelProvider: ModelProvider.instance),
     );
 
+    await Amplify.addPlugin(AmplifyAuthCognito());
     await Amplify.configure(amplifyconfig);
     await Amplify.DataStore.start();
 
