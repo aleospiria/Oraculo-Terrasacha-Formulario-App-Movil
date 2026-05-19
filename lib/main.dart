@@ -101,8 +101,73 @@ void _escucharSincronizacion() {
   });
 }
 
-class CapturadorApp extends StatelessWidget {
+class _HomeRouter extends StatefulWidget {
+  final String initialRoute;
+  const _HomeRouter({required this.initialRoute});
+
+  @override
+  State<_HomeRouter> createState() => _HomeRouterState();
+}
+
+class _HomeRouterState extends State<_HomeRouter> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, widget.initialRoute);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Color(0xFFF7F8F6),
+      body: Center(
+        child: CircularProgressIndicator(color: Color(0xFF4A5C24)),
+      ),
+    );
+  }
+}
+
+class CapturadorApp extends StatefulWidget {
   const CapturadorApp({super.key});
+
+  @override
+  State<CapturadorApp> createState() => _CapturadorAppState();
+}
+
+class _CapturadorAppState extends State<CapturadorApp> {
+  String _initialRoute = '/login';
+  bool _isChecking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    try {
+      final session = await Amplify.Auth.fetchAuthSession();
+      final signedIn = session.isSignedIn;
+
+      if (mounted) {
+        setState(() {
+          _initialRoute = signedIn ? '/home' : '/login';
+          _isChecking = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _initialRoute = '/login';
+          _isChecking = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -110,22 +175,29 @@ class CapturadorApp extends StatelessWidget {
       title: 'Terrasacha - Captura de Datos',
       debugShowCheckedModeBanner: false,
       theme: terrasachaTheme,
-      initialRoute: '/login',
+      home: _isChecking
+          ? const Scaffold(
+              backgroundColor: Color(0xFFF7F8F6),
+              body: Center(
+                child: CircularProgressIndicator(color: Color(0xFF4A5C24)),
+              ),
+            )
+          : _HomeRouter(initialRoute: _initialRoute),
       routes: {
-        '/login':    (context) => const LoginScreen(),
-        '/register': (context) => const RegisterScreen(),
-        '/home':      (context) => const PanelControlScreen(),
-        '/proyectos':      (context) => const ProyectosMenuScreen(),
-        '/predios':        (context) => const PrediosMenuScreen(),
-        '/parcelas':       (context) => const ParcelasMenuScreen(),
-        '/trees':          (context) => const TreesMenuScreen(),
-        '/captura':        (context) => const CapturaDatosScreen(),
-        '/sincronizacion': (context) => const SincronizacionScreen(),
-        '/revision':       (context) => const RevisionScreen(),
-        '/registros':      (context) => const RegistrosGuardadosScreen(),
-        '/incidencias': (context) => const RegistroIncidenciaScreen(),
+        '/login':               (context) => const LoginScreen(),
+        '/register':            (context) => const RegisterScreen(),
+        '/verificacion':        (context) => const VerificacionScreen(),
+        '/home':                (context) => const PanelControlScreen(),
+        '/proyectos':           (context) => const ProyectosMenuScreen(),
+        '/predios':             (context) => const PrediosMenuScreen(),
+        '/parcelas':            (context) => const ParcelasMenuScreen(),
+        '/trees':               (context) => const TreesMenuScreen(),
+        '/captura':             (context) => const CapturaDatosScreen(),
+        '/sincronizacion':      (context) => const SincronizacionScreen(),
+        '/revision':            (context) => const RevisionScreen(),
+        '/registros':           (context) => const RegistrosGuardadosScreen(),
+        '/incidencias':         (context) => const RegistroIncidenciaScreen(),
         '/reportar-incidencia': (context) => const ReportarIncidenciaScreen(),
-        '/verificacion': (context) => const VerificacionScreen(),
       },
     );
   }
