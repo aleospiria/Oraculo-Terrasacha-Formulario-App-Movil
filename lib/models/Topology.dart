@@ -32,6 +32,7 @@ class Topology extends amplify_core.Model {
   final String? _string_code;
   final String? _number_code;
   final String? _status;
+  final String? _polygon;
   final Project? _project;
   final Topology? _topologyParent;
   final List<Topology>? _topologies;
@@ -77,6 +78,10 @@ class Topology extends amplify_core.Model {
     return _status;
   }
   
+  String? get polygon {
+    return _polygon;
+  }
+  
   Project? get project {
     return _project;
   }
@@ -101,15 +106,16 @@ class Topology extends amplify_core.Model {
     return _updatedAt;
   }
   
-  const Topology._internal({required this.id, required name, string_code, number_code, status, project, topologyParent, topologies, topologyTrees, createdAt, updatedAt}): _name = name, _string_code = string_code, _number_code = number_code, _status = status, _project = project, _topologyParent = topologyParent, _topologies = topologies, _topologyTrees = topologyTrees, _createdAt = createdAt, _updatedAt = updatedAt;
+  const Topology._internal({required this.id, required name, string_code, number_code, status, polygon, project, topologyParent, topologies, topologyTrees, createdAt, updatedAt}): _name = name, _string_code = string_code, _number_code = number_code, _status = status, _polygon = polygon, _project = project, _topologyParent = topologyParent, _topologies = topologies, _topologyTrees = topologyTrees, _createdAt = createdAt, _updatedAt = updatedAt;
   
-  factory Topology({String? id, required String name, String? string_code, String? number_code, String? status, Project? project, Topology? topologyParent, List<Topology>? topologies, List<TopologyTree>? topologyTrees}) {
+  factory Topology({String? id, required String name, String? string_code, String? number_code, String? status, String? polygon, Project? project, Topology? topologyParent, List<Topology>? topologies, List<TopologyTree>? topologyTrees}) {
     return Topology._internal(
       id: id == null ? amplify_core.UUID.getUUID() : id,
       name: name,
       string_code: string_code,
       number_code: number_code,
       status: status,
+      polygon: polygon,
       project: project,
       topologyParent: topologyParent,
       topologies: topologies != null ? List<Topology>.unmodifiable(topologies) : topologies,
@@ -129,6 +135,7 @@ class Topology extends amplify_core.Model {
       _string_code == other._string_code &&
       _number_code == other._number_code &&
       _status == other._status &&
+      _polygon == other._polygon &&
       _project == other._project &&
       _topologyParent == other._topologyParent &&
       DeepCollectionEquality().equals(_topologies, other._topologies) &&
@@ -148,6 +155,7 @@ class Topology extends amplify_core.Model {
     buffer.write("string_code=" + "$_string_code" + ", ");
     buffer.write("number_code=" + "$_number_code" + ", ");
     buffer.write("status=" + "$_status" + ", ");
+    buffer.write("polygon=" + "$_polygon" + ", ");
     buffer.write("project=" + (_project != null ? _project!.toString() : "null") + ", ");
     buffer.write("topologyParent=" + (_topologyParent != null ? _topologyParent!.toString() : "null") + ", ");
     buffer.write("createdAt=" + (_createdAt != null ? _createdAt!.format() : "null") + ", ");
@@ -157,13 +165,14 @@ class Topology extends amplify_core.Model {
     return buffer.toString();
   }
   
-  Topology copyWith({String? name, String? string_code, String? number_code, String? status, Project? project, Topology? topologyParent, List<Topology>? topologies, List<TopologyTree>? topologyTrees}) {
+  Topology copyWith({String? name, String? string_code, String? number_code, String? status, String? polygon, Project? project, Topology? topologyParent, List<Topology>? topologies, List<TopologyTree>? topologyTrees}) {
     return Topology._internal(
       id: id,
       name: name ?? this.name,
       string_code: string_code ?? this.string_code,
       number_code: number_code ?? this.number_code,
       status: status ?? this.status,
+      polygon: polygon ?? this.polygon,
       project: project ?? this.project,
       topologyParent: topologyParent ?? this.topologyParent,
       topologies: topologies ?? this.topologies,
@@ -175,6 +184,7 @@ class Topology extends amplify_core.Model {
     ModelFieldValue<String?>? string_code,
     ModelFieldValue<String?>? number_code,
     ModelFieldValue<String?>? status,
+    ModelFieldValue<String?>? polygon,
     ModelFieldValue<Project?>? project,
     ModelFieldValue<Topology?>? topologyParent,
     ModelFieldValue<List<Topology>?>? topologies,
@@ -186,6 +196,7 @@ class Topology extends amplify_core.Model {
       string_code: string_code == null ? this.string_code : string_code.value,
       number_code: number_code == null ? this.number_code : number_code.value,
       status: status == null ? this.status : status.value,
+      polygon: polygon == null ? this.polygon : polygon.value,
       project: project == null ? this.project : project.value,
       topologyParent: topologyParent == null ? this.topologyParent : topologyParent.value,
       topologies: topologies == null ? this.topologies : topologies.value,
@@ -199,6 +210,7 @@ class Topology extends amplify_core.Model {
       _string_code = json['string_code'],
       _number_code = json['number_code'],
       _status = json['status'],
+      _polygon = json['polygon'],
       _project = json['project'] != null
         ? json['project']['serializedData'] != null
           ? Project.fromJson(new Map<String, dynamic>.from(json['project']['serializedData']))
@@ -239,7 +251,7 @@ class Topology extends amplify_core.Model {
       _updatedAt = json['updatedAt'] != null ? amplify_core.TemporalDateTime.fromString(json['updatedAt']) : null;
   
   Map<String, dynamic> toJson() => {
-    'id': id, 'name': _name, 'string_code': _string_code, 'number_code': _number_code, 'status': _status, 'project': _project?.toJson(), 'topologyParent': _topologyParent?.toJson(), 'topologies': _topologies?.map((Topology? e) => e?.toJson()).toList(), 'topologyTrees': _topologyTrees?.map((TopologyTree? e) => e?.toJson()).toList(), 'createdAt': _createdAt?.format(), 'updatedAt': _updatedAt?.format()
+    'id': id, 'name': _name, 'string_code': _string_code, 'number_code': _number_code, 'status': _status, 'polygon': _polygon, 'project': _project?.toJson(), 'topologyParent': _topologyParent?.toJson(), 'topologies': _topologies?.map((Topology? e) => e?.toJson()).toList(), 'topologyTrees': _topologyTrees?.map((TopologyTree? e) => e?.toJson()).toList(), 'createdAt': _createdAt?.format(), 'updatedAt': _updatedAt?.format()
   };
   
   Map<String, Object?> toMap() => {
@@ -248,6 +260,7 @@ class Topology extends amplify_core.Model {
     'string_code': _string_code,
     'number_code': _number_code,
     'status': _status,
+    'polygon': _polygon,
     'project': _project,
     'topologyParent': _topologyParent,
     'topologies': _topologies,
@@ -262,6 +275,7 @@ class Topology extends amplify_core.Model {
   static final STRING_CODE = amplify_core.QueryField(fieldName: "string_code");
   static final NUMBER_CODE = amplify_core.QueryField(fieldName: "number_code");
   static final STATUS = amplify_core.QueryField(fieldName: "status");
+  static final POLYGON = amplify_core.QueryField(fieldName: "polygon");
   static final PROJECT = amplify_core.QueryField(
     fieldName: "project",
     fieldType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.model, ofModelName: 'Project'));
@@ -300,6 +314,12 @@ class Topology extends amplify_core.Model {
     
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
       key: Topology.STATUS,
+      isRequired: false,
+      ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.string)
+    ));
+    
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+      key: Topology.POLYGON,
       isRequired: false,
       ofType: amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.string)
     ));

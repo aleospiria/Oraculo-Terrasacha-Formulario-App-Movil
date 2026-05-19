@@ -42,7 +42,7 @@ export 'UnitOfMeasure.dart';
 
 class ModelProvider implements amplify_core.ModelProviderInterface {
   @override
-  String version = "b5cef9ba4997edfcbc686caedab2cb2a";
+  String version = "fd2aa318d106ab8184b458956a3adc7a";
   @override
   List<amplify_core.ModelSchema> modelSchemas = [Feature.schema, Project.schema, RawData.schema, Template.schema, TemplateFeature.schema, Topology.schema, TopologyTree.schema, Tree.schema, UnitOfMeasure.schema];
   @override
