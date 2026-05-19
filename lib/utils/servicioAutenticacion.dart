@@ -61,6 +61,29 @@ class servicioAutenticacion {
     return false;
   }
 
+  // Verificar código de confirmación
+  static Future<Map<String, dynamic>> verificarCodigo(String email, String codigo) async {
+    try {
+      await Amplify.Auth.confirmSignUp(
+        username: email,
+        confirmationCode: codigo,
+      );
+      return {'success': true};
+    } on AuthException catch (e) {
+      return {'success': false, 'error': e.message};
+    }
+  }
+
+// Reenviar código
+  static Future<Map<String, dynamic>> reenviarCodigo(String email) async {
+    try {
+      await Amplify.Auth.resendSignUpCode(username: email);
+      return {'success': true};
+    } on AuthException catch (e) {
+      return {'success': false, 'error': e.message};
+    }
+  }
+
   // LOGOUT
   static Future<void> logout() async {
     await Amplify.Auth.signOut();
