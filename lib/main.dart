@@ -19,6 +19,9 @@ import 'Screens/RegistrosGuardadosScreen.dart';
 import 'theme.dart';
 import 'amplifyconfiguration.dart';
 import 'Screens/RegistroIncidenciaScreen.dart';
+import 'Screens/LoginScreen.dart';
+import 'Screens/RegisterScreen.dart';
+import 'Screens/VerificacionScreen.dart';
 
 // StreamController para notificar cuando la sincronización esté lista
 final _syncReadyController = StreamController<bool>.broadcast();
@@ -107,8 +110,10 @@ class CapturadorApp extends StatelessWidget {
       title: 'Terrasacha - Captura de Datos',
       debugShowCheckedModeBanner: false,
       theme: terrasachaTheme,
-      initialRoute: '/home',
+      initialRoute: '/login',
       routes: {
+        '/login':    (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
         '/home':      (context) => const PanelControlScreen(),
         '/proyectos':      (context) => const ProyectosMenuScreen(),
         '/predios':        (context) => const PrediosMenuScreen(),
@@ -120,6 +125,7 @@ class CapturadorApp extends StatelessWidget {
         '/registros':      (context) => const RegistrosGuardadosScreen(),
         '/incidencias': (context) => const RegistroIncidenciaScreen(),
         '/reportar-incidencia': (context) => const ReportarIncidenciaScreen(),
+        '/verificacion': (context) => const VerificacionScreen(),
       },
     );
   }

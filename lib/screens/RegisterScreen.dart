@@ -57,7 +57,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
-      Navigator.pop(context);
+      Navigator.pushReplacementNamed(
+        context,
+        '/verificacion',
+        arguments: _emailCtrl.text.trim(), // 👈 le pasa el email a la screen
+      );
     } else {
       setState(() {
         _error = resultado['error'] ?? 'Error al registrarse';
