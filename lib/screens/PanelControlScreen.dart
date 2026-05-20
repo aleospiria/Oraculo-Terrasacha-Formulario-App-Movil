@@ -202,6 +202,19 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
               child: Icon(Icons.person_outline, color: primaryColor, size: 20),
             ),
           ),
+          IconButton(
+            icon: Icon(Icons.logout, color: Colors.red.shade400),
+            tooltip: 'Cerrar sesión',
+            onPressed: () async {
+              await Amplify.Auth.signOut();
+              if (!context.mounted) return;
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (_) => false,
+              );
+            },
+          ),
         ],
       ),
       body: SingleChildScrollView(
