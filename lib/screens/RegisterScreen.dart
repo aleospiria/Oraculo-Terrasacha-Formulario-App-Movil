@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/servicioAutenticacion.dart';
+import '../main.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -57,10 +58,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
+      setPendingVerification(_emailCtrl.text.trim());
       Navigator.pushReplacementNamed(
         context,
         '/verificacion',
-        arguments: _emailCtrl.text.trim(), // 👈 le pasa el email a la screen
+        arguments: _emailCtrl.text.trim(),
       );
     } else {
       setState(() {

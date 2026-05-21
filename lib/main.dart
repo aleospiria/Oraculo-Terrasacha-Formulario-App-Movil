@@ -22,6 +22,7 @@ import 'Screens/RegistroIncidenciaScreen.dart';
 import 'Screens/LoginScreen.dart';
 import 'Screens/RegisterScreen.dart';
 import 'Screens/VerificacionScreen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // StreamController para notificar cuando la sincronización esté lista
 final _syncReadyController = StreamController<bool>.broadcast();
@@ -33,8 +34,49 @@ bool get isSyncReady => _isSyncReady;
 bool _hasLocalData = false;
 bool get hasLocalData => _hasLocalData;
 
+// ── Verificación de email pendiente (timeout 5 min) ──
+String? _pendingVerificationEmail;
+const Duration _pendingVerificationTimeout = Duration(minutes: 1); // TODO: cambiar a 5 min tras pruebas
+
+/// Guarda un email pendiente de verificación con su timestamp
+void setPendingVerification(String email) {
+  _pendingVerificationEmail = email;
+  _prefs?.setString('pending_email', email);
+  _prefs?.setString('pending_timestamp', DateTime.now().toIso8601String());
+}
+
+/// Limpia el estado de verificación pendiente
+void clearPendingVerification() {
+  _pendingVerificationEmail = null;
+  _prefs?.remove('pending_email');
+  _prefs?.remove('pending_timestamp');
+}
+
+/// Lee el email pendiente: primero de memoria, luego de SharedPreferences
+String? _readPendingEmail() {
+  if (_pendingVerificationEmail != null) return _pendingVerificationEmail;
+  final savedEmail = _prefs?.getString('pending_email');
+  if (savedEmail == null) return null;
+  final savedTs = _prefs?.getString('pending_timestamp');
+  if (savedTs == null) return null;
+  final timestamp = DateTime.tryParse(savedTs);
+  if (timestamp == null) return null;
+  if (DateTime.now().difference(timestamp) > _pendingVerificationTimeout) {
+    clearPendingVerification();
+    return null;
+  }
+  _pendingVerificationEmail = savedEmail;
+  return savedEmail;
+}
+
+/// Retorna el email pendiente si aún no ha expirado el timeout
+String? get pendingVerificationEmail => _readPendingEmail();
+
+SharedPreferences? _prefs;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _prefs = await SharedPreferences.getInstance();
   await _configureAmplify();
   runApp(const CapturadorApp());
 }
@@ -149,23 +191,28 @@ class _CapturadorAppState extends State<CapturadorApp> {
   }
 
   Future<void> _checkSession() async {
+    String route;
     try {
       final session = await Amplify.Auth.fetchAuthSession();
       final signedIn = session.isSignedIn;
 
-      if (mounted) {
-        setState(() {
-          _initialRoute = signedIn ? '/home' : '/login';
-          _isChecking = false;
-        });
+      if (pendingVerificationEmail != null) {
+        route = '/verificacion';
+      } else if (signedIn) {
+        clearPendingVerification();
+        route = '/home';
+      } else {
+        route = '/login';
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _initialRoute = '/login';
-          _isChecking = false;
-        });
-      }
+      route = pendingVerificationEmail != null ? '/verificacion' : '/login';
+    }
+
+    if (mounted) {
+      setState(() {
+        _initialRoute = route;
+        _isChecking = false;
+      });
     }
   }
 

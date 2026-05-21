@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/servicioAutenticacion.dart';
+import '../main.dart';
 
 class VerificacionScreen extends StatefulWidget {
   const VerificacionScreen({super.key});
@@ -13,6 +14,7 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
   final List<TextEditingController> _ctrls =
   List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _nodes = List.generate(6, (_) => FocusNode());
+  final TextEditingController _emailCtrl = TextEditingController();
 
   bool _cargando = false;
   bool _reenviando = false;
@@ -25,7 +27,8 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _email = ModalRoute.of(context)?.settings.arguments as String?;
+    final args = ModalRoute.of(context)?.settings.arguments as String?;
+    _email = args ?? pendingVerificationEmail;
   }
 
   @override
@@ -36,6 +39,7 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
     for (final n in _nodes) {
       n.dispose();
     }
+    _emailCtrl.dispose();
     super.dispose();
   }
 
@@ -46,21 +50,25 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
       setState(() => _error = 'Ingresa los 6 dígitos del código');
       return;
     }
-    if (_email == null) {
-      setState(() => _error = 'No se encontró el correo. Vuelve a registrarte.');
+    final email = _email ?? (_emailCtrl.text.trim().isNotEmpty ? _emailCtrl.text.trim() : null);
+    if (email == null) {
+      setState(() => _error = 'Ingresa tu correo electrónico primero.');
       return;
     }
+    if (_email == null) setState(() => _email = email);
 
     setState(() {
       _cargando = true;
       _error = null;
     });
 
-    final resultado = await servicioAutenticacion.verificarCodigo(_email!, _codigoCompleto);
+    final resultado = await servicioAutenticacion.verificarCodigo(email, _codigoCompleto);
 
     if (!mounted) return;
 
     if (resultado['success'] == true) {
+      clearPendingVerification();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('¡Cuenta verificada! Ya puedes iniciar sesión.'),
@@ -79,10 +87,17 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
   }
 
   Future<void> _reenviarCodigo() async {
-    if (_email == null) return;
-    setState(() => _reenviando = true);
+    final email = _email ?? (_emailCtrl.text.trim().isNotEmpty ? _emailCtrl.text.trim() : null);
+    if (email == null) {
+      if (mounted) setState(() => _error = 'Ingresa tu correo electrónico primero.');
+      return;
+    }
+    setState(() {
+      _email ??= email;
+      _reenviando = true;
+    });
 
-    final resultado = await servicioAutenticacion.reenviarCodigo(_email!);
+    final resultado = await servicioAutenticacion.reenviarCodigo(email);
 
     if (!mounted) return;
     setState(() => _reenviando = false);
@@ -187,7 +202,40 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
                 ),
               ),
 
-              const SizedBox(height: 40),
+              // Campo manual de email (solo si no se recibió por args/pending)
+              if (_email == null) ...[
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: 'Correo electrónico',
+                    hintText: 'Ingresa el correo que registraste',
+                    prefixIcon: Icon(Icons.email_outlined, color: primaryColor),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey[300]!),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: primaryColor, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    'Ingresa tu correo y presiona "Reenviar código"',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
 
               // Cajas de dígitos
               Row(
