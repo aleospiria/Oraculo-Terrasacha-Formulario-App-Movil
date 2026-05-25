@@ -15,13 +15,13 @@ import 'Screens/ProyectosMenuScreen.dart';
 import 'Screens/TreesMenuScreen.dart';
 import 'Screens/SincronizacionScreen.dart';
 import 'Screens/RevisionScreen.dart';
-import 'Screens/RegistrosGuardadosScreen.dart';
 import 'theme.dart';
 import 'amplifyconfiguration.dart';
 import 'Screens/RegistroIncidenciaScreen.dart';
 import 'Screens/LoginScreen.dart';
 import 'Screens/RegisterScreen.dart';
 import 'Screens/VerificacionScreen.dart';
+import 'utils/servicioAutenticacion.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // StreamController para notificar cuando la sincronización esté lista
@@ -45,15 +45,23 @@ void setPendingVerification(String email) {
   _prefs?.setString('pending_timestamp', DateTime.now().toIso8601String());
 }
 
-/// Limpia el estado de verificación pendiente
+/// Limpia solo el timeout. El email se conserva como prueba de que
+/// este dispositivo registró al usuario.
 void clearPendingVerification() {
+  _pendingVerificationEmail = null;
+  _prefs?.remove('pending_timestamp');
+}
+
+/// Limpia todo (verificación exitosa o login normal).
+void clearAllVerificationData() {
   _pendingVerificationEmail = null;
   _prefs?.remove('pending_email');
   _prefs?.remove('pending_timestamp');
 }
 
-/// Lee el email pendiente: primero de memoria, luego de SharedPreferences
-String? _readPendingEmail() {
+/// Lee el email pendiente: primero de memoria, luego de SharedPreferences.
+/// Si el timeout expiró, limpia el timestamp y cierra la sesión de Cognito.
+Future<String?> pendingVerificationEmail() async {
   if (_pendingVerificationEmail != null) return _pendingVerificationEmail;
   final savedEmail = _prefs?.getString('pending_email');
   if (savedEmail == null) return null;
@@ -63,16 +71,34 @@ String? _readPendingEmail() {
   if (timestamp == null) return null;
   if (DateTime.now().difference(timestamp) > _pendingVerificationTimeout) {
     clearPendingVerification();
+    try {
+      await Amplify.Auth.signOut();
+    } catch (_) {}
     return null;
   }
   _pendingVerificationEmail = savedEmail;
   return savedEmail;
 }
 
-/// Retorna el email pendiente si aún no ha expirado el timeout
-String? get pendingVerificationEmail => _readPendingEmail();
-
 SharedPreferences? _prefs;
+
+// ── Rol del usuario actual ──
+String? _currentUserRole;
+String? get currentUserRole => _currentUserRole;
+bool hasRole(String role) => _currentUserRole == role;
+bool hasAnyRole(List<String> roles) {
+  final role = _currentUserRole;
+  return role != null && roles.contains(role);
+}
+
+void setCurrentRole(String? role) {
+  _currentUserRole = role;
+  if (role != null) {
+    _prefs?.setString('user_role', role);
+  } else {
+    _prefs?.remove('user_role');
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -173,6 +199,26 @@ class _HomeRouterState extends State<_HomeRouter> {
   }
 }
 
+/// Widget que protege una pantalla según el rol.
+class RoleGuard extends StatelessWidget {
+  final Widget child;
+  final List<String> allowedRoles;
+  const RoleGuard({super.key, required this.child, required this.allowedRoles});
+
+  @override
+  Widget build(BuildContext context) {
+    if (!hasAnyRole(allowedRoles)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacementNamed(context, '/home');
+      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return child;
+  }
+}
+
 class CapturadorApp extends StatefulWidget {
   const CapturadorApp({super.key});
 
@@ -196,16 +242,28 @@ class _CapturadorAppState extends State<CapturadorApp> {
       final session = await Amplify.Auth.fetchAuthSession();
       final signedIn = session.isSignedIn;
 
-      if (pendingVerificationEmail != null) {
+      final pending = await pendingVerificationEmail();
+      if (pending != null) {
         route = '/verificacion';
       } else if (signedIn) {
-        clearPendingVerification();
+        clearAllVerificationData();
+        _currentUserRole = _prefs?.getString('user_role');
+        if (_currentUserRole == null) {
+          try {
+            final fetchedRole = await servicioAutenticacion.getRol();
+            if (fetchedRole != null) {
+              _currentUserRole = fetchedRole;
+              _prefs?.setString('user_role', fetchedRole);
+            }
+          } catch (_) {}
+        }
         route = '/home';
       } else {
         route = '/login';
       }
     } catch (e) {
-      route = pendingVerificationEmail != null ? '/verificacion' : '/login';
+      final pending = await pendingVerificationEmail();
+      route = pending != null ? '/verificacion' : '/login';
     }
 
     if (mounted) {
@@ -235,14 +293,32 @@ class _CapturadorAppState extends State<CapturadorApp> {
         '/register':            (context) => const RegisterScreen(),
         '/verificacion':        (context) => const VerificacionScreen(),
         '/home':                (context) => const PanelControlScreen(),
-        '/proyectos':           (context) => const ProyectosMenuScreen(),
-        '/predios':             (context) => const PrediosMenuScreen(),
-        '/parcelas':            (context) => const ParcelasMenuScreen(),
-        '/trees':               (context) => const TreesMenuScreen(),
+        '/proyectos':           (context) => const RoleGuard(
+          allowedRoles: ['lider_proyecto', 'lider_cuadrilla'],
+          child: ProyectosMenuScreen(),
+        ),
+        '/predios':             (context) => const RoleGuard(
+          allowedRoles: ['lider_proyecto', 'lider_cuadrilla'],
+          child: PrediosMenuScreen(),
+        ),
+        '/parcelas':            (context) => const RoleGuard(
+          allowedRoles: ['lider_proyecto', 'lider_cuadrilla'],
+          child: ParcelasMenuScreen(),
+        ),
+        '/trees':               (context) => const RoleGuard(
+          allowedRoles: ['lider_proyecto', 'lider_cuadrilla'],
+          child: TreesMenuScreen(),
+        ),
         '/captura':             (context) => const CapturaDatosScreen(),
-        '/sincronizacion':      (context) => const SincronizacionScreen(),
-        '/revision':            (context) => const RevisionScreen(),
-        '/registros':           (context) => const RegistrosGuardadosScreen(),
+        '/sincronizacion':      (context) => const RoleGuard(
+          allowedRoles: ['lider_proyecto', 'lider_cuadrilla'],
+          child: SincronizacionScreen(),
+        ),
+        '/revision':            (context) => const RoleGuard(
+          allowedRoles: ['lider_proyecto', 'lider_cuadrilla'],
+          child: RevisionScreen(),
+        ),
+        '/registros':           (context) => const CapturaDatosScreen(),
         '/incidencias':         (context) => const RegistroIncidenciaScreen(),
         '/reportar-incidencia': (context) => const ReportarIncidenciaScreen(),
       },
