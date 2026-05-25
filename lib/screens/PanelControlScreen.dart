@@ -294,84 +294,8 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                // Crear nuevo plan — destacado
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const CreacionPlanScreen()),
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      decoration: BoxDecoration(
-                        color: primaryColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Column(
-                        children: [
-                          Stack(
-                            alignment: Alignment.topRight,
-                            children: [
-                              Icon(Icons.assignment_outlined,
-                                  color: Colors.white, size: 36),
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                child: Icon(Icons.add_circle,
-                                    color: Colors.white, size: 16),
-                              ),
-                            ],
-                          ),
-                          SizedBox(height: 10),
-                          Text(
-                            'Crear nuevo\nplan',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Gestionar usuarios
-                Expanded(
-                  child: _buildAccionCard(
-                    icono: Icons.group_outlined,
-                    label: 'Gestionar\nusuarios',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const GestionUsuariosScreen()),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Configurar checklist
-                Expanded(
-                  child: _buildAccionCard(
-                    icono: Icons.checklist_outlined,
-                    label: 'Configurar\nchecklist',
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Configurar checklist')),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+            // Acciones rápidas según rol
+            _buildQuickActions(),
             const SizedBox(height: 24),
 
             // ── Proyectos recientes ──────────────────────────────────────
@@ -402,47 +326,29 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
         elevation: 8,
         onTap: (index) {
           setState(() => _bottomIndex = index);
-          if (index == 1) {
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ProyectosMenuScreen()));
-          } else if (index == 2) {
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const TareasScreen()));
-          } else if (index != 0) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Sección ${_navLabel(index)} próximamente'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+          if (hasRole('operador')) {
+            if (index == 1) {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const TareasScreen()));
+            }
+          } else {
+            if (index == 1) {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ProyectosMenuScreen()));
+            } else if (index == 2) {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const TareasScreen()));
+            } else if (index != 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Sección ${_navLabel(index)} próximamente'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
           }
         },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            activeIcon: Icon(Icons.home),
-            label: 'Inicio',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.folder_outlined),
-            activeIcon: Icon(Icons.folder),
-            label: 'Proyectos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            activeIcon: Icon(Icons.assignment),
-            label: 'Tareas',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map_outlined),
-            activeIcon: Icon(Icons.map),
-            label: 'Mapas',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.more_horiz),
-            label: 'Más',
-          ),
-        ],
+        items: _navItems,
       ),
     );
   }
@@ -450,8 +356,100 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   String _navLabel(int index) {
+    if (hasRole('operador')) {
+      const labels = ['Inicio', 'Tareas'];
+      return labels[index];
+    }
     const labels = ['Inicio', 'Proyectos', 'Tareas', 'Mapas', 'Más'];
     return labels[index];
+  }
+
+  List<BottomNavigationBarItem> get _navItems {
+    if (hasRole('operador')) {
+      return const [
+        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Inicio'),
+        BottomNavigationBarItem(icon: Icon(Icons.assignment_outlined), activeIcon: Icon(Icons.assignment), label: 'Tareas'),
+      ];
+    }
+    return const [
+      BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Inicio'),
+      BottomNavigationBarItem(icon: Icon(Icons.folder_outlined), activeIcon: Icon(Icons.folder), label: 'Proyectos'),
+      BottomNavigationBarItem(icon: Icon(Icons.assignment_outlined), activeIcon: Icon(Icons.assignment), label: 'Tareas'),
+      BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Mapas'),
+      BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'Más'),
+    ];
+  }
+
+  Widget _buildQuickActions() {
+    final acciones = <Widget>[];
+
+    if (hasAnyRole(['lider_proyecto', 'lider_cuadrilla'])) {
+      acciones.add(Expanded(
+        child: GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CreacionPlanScreen()),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            decoration: BoxDecoration(
+              color: primaryColor,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Column(
+              children: [
+                Stack(
+                  alignment: Alignment.topRight,
+                  children: [
+                    Icon(Icons.assignment_outlined, color: Colors.white, size: 36),
+                    Positioned(
+                      right: 0, top: 0,
+                      child: Icon(Icons.add_circle, color: Colors.white, size: 16),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 10),
+                Text('Crear nuevo\nplan', textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13, height: 1.3)),
+              ],
+            ),
+          ),
+        ),
+      ));
+    }
+
+    if (hasRole('lider_proyecto')) {
+      if (acciones.isNotEmpty) acciones.add(const SizedBox(width: 10));
+      acciones.add(Expanded(
+        child: _buildAccionCard(
+          icono: Icons.group_outlined,
+          label: 'Gestionar\nusuarios',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const GestionUsuariosScreen()),
+          ),
+        ),
+      ));
+    }
+
+    if (hasAnyRole(['lider_proyecto', 'lider_cuadrilla'])) {
+      if (acciones.isNotEmpty) acciones.add(const SizedBox(width: 10));
+      acciones.add(Expanded(
+        child: _buildAccionCard(
+          icono: Icons.checklist_outlined,
+          label: 'Configurar\nchecklist',
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Configurar checklist')),
+            );
+          },
+        ),
+      ));
+    }
+
+    return acciones.isEmpty
+        ? const SizedBox.shrink()
+        : Row(children: acciones);
   }
 
   Widget _buildResumenCard({
