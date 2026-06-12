@@ -23,12 +23,21 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
 
   final Color primaryColor = const Color(0xFF4A5C24);
   final Color backgroundColor = const Color(0xFFF7F8F6);
+  bool _emailCargado = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_emailCargado) return;
+    _emailCargado = true;
+    _cargarEmail();
+  }
+
+  Future<void> _cargarEmail() async {
     final args = ModalRoute.of(context)?.settings.arguments as String?;
-    _email = args ?? pendingVerificationEmail;
+    final pending = await pendingVerificationEmail();
+    if (!mounted) return;
+    setState(() => _email = args ?? pending);
   }
 
   @override
