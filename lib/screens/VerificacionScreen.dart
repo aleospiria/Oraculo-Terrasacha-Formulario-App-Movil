@@ -28,7 +28,13 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final args = ModalRoute.of(context)?.settings.arguments as String?;
-    _email = args ?? pendingVerificationEmail;
+    if (args != null) {
+      _email = args;
+    } else {
+      pendingVerificationEmail().then((email) {
+        if (mounted) setState(() => _email = email);
+      });
+    }
   }
 
   @override
