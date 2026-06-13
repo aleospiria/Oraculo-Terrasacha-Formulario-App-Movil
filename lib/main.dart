@@ -320,7 +320,9 @@ class _CapturadorAppState extends State<CapturadorApp> {
         ),
         '/registros':           (context) => const CapturaDatosScreen(),
         '/incidencias':         (context) => const RegistroIncidenciaScreen(),
-        '/reportar-incidencia': (context) => const ReportarIncidenciaScreen(),
+        '/reportar-incidencia': (context) => ReportarIncidenciaScreen(
+          reporteId: ModalRoute.of(context)?.settings.arguments as String?,
+        ),
       },
     );
   }
