@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/reporte_accidente.dart';
 import '../utils/servicio_accidentes.dart';
 
@@ -221,17 +225,43 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
     }
   }
 
-  void _exportarSeleccionados() {
-    // TODO: implementar lógica de exportación
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Exportar ${_seleccionados.length} reporte${_seleccionados.length != 1 ? 's' : ''} (próximamente)',
+  Future<void> _exportarSeleccionados() async {
+    if (_seleccionados.isEmpty) return;
+
+    final reportesExport = _reportes.where((r) => _seleccionados.contains(r.id)).toList();
+    final esUno = reportesExport.length == 1;
+    final ahora = DateTime.now();
+    final sufijo = '${ahora.year}${ahora.month.toString().padLeft(2, '0')}${ahora.day.toString().padLeft(2, '0')}_'
+        '${ahora.hour.toString().padLeft(2, '0')}${ahora.minute.toString().padLeft(2, '0')}';
+
+    final jsonStr = esUno
+        ? const JsonEncoder.withIndent('  ').convert(reportesExport.first.toJson())
+        : const JsonEncoder.withIndent('  ').convert(reportesExport.map((r) => r.toJson()).toList());
+
+    final fileName = esUno ? 'accidente_$sufijo.json' : 'reportes_accidentes_$sufijo.json';
+
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsString(jsonStr, flush: true);
+
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
+        subject: esUno ? 'Reporte de accidente' : 'Reportes de accidentes',
+        text: esUno
+            ? 'Reporte de ${reportesExport.first.trabajadorNombre} - ${reportesExport.first.accidenteTipo}'
+            : '${reportesExport.length} reportes de accidentes exportados',
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al exportar: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
         ),
-        backgroundColor: primaryColor,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      );
+    }
   }
 
   Widget _buildCard(ReporteAccidente r) {
