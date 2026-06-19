@@ -1,9 +1,6 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../models/reporte_accidente.dart';
+import '../utils/exportador_pdf.dart';
 import '../utils/servicio_accidentes.dart';
 
 class RegistroIncidenciaScreen extends StatefulWidget {
@@ -120,7 +117,7 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.shield_outlined, size: 72, color: primaryColor.withOpacity(0.3)),
+                      Icon(Icons.shield_outlined, size: 72, color: primaryColor.withValues(alpha: 0.3)),
                       const SizedBox(height: 16),
                       Text('Sin reportes de accidentes', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
                       const SizedBox(height: 8),
@@ -160,7 +157,7 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, -2))],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, -2))],
               ),
               child: SafeArea(
                 child: Row(
@@ -229,29 +226,13 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
     if (_seleccionados.isEmpty) return;
 
     final reportesExport = _reportes.where((r) => _seleccionados.contains(r.id)).toList();
-    final esUno = reportesExport.length == 1;
-    final ahora = DateTime.now();
-    final sufijo = '${ahora.year}${ahora.month.toString().padLeft(2, '0')}${ahora.day.toString().padLeft(2, '0')}_'
-        '${ahora.hour.toString().padLeft(2, '0')}${ahora.minute.toString().padLeft(2, '0')}';
-
-    final jsonStr = esUno
-        ? const JsonEncoder.withIndent('  ').convert(reportesExport.first.toJson())
-        : const JsonEncoder.withIndent('  ').convert(reportesExport.map((r) => r.toJson()).toList());
-
-    final fileName = esUno ? 'accidente_$sufijo.json' : 'reportes_accidentes_$sufijo.json';
 
     try {
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/$fileName');
-      await file.writeAsString(jsonStr, flush: true);
-
-      await SharePlus.instance.share(ShareParams(
-        files: [XFile(file.path)],
-        subject: esUno ? 'Reporte de accidente' : 'Reportes de accidentes',
-        text: esUno
-            ? 'Reporte de ${reportesExport.first.trabajadorNombre} - ${reportesExport.first.accidenteTipo}'
-            : '${reportesExport.length} reportes de accidentes exportados',
-      ));
+      if (reportesExport.length == 1) {
+        await ExportadorPdf.exportar(reportesExport.first);
+      } else {
+        await ExportadorPdf.exportarMultiples(reportesExport);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -281,10 +262,10 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: seleccionado ? primaryColor.withOpacity(0.05) : Colors.white,
+          color: seleccionado ? primaryColor.withValues(alpha: 0.05) : Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border: seleccionado ? Border.all(color: primaryColor.withOpacity(0.3), width: 1.5) : null,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+          border: seleccionado ? Border.all(color: primaryColor.withValues(alpha: 0.3), width: 1.5) : null,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: IntrinsicHeight(
           child: Row(
