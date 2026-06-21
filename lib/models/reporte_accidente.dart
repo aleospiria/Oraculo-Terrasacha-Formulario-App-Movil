@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 class ReporteAccidente {
   // Metadata
   final String id;
@@ -59,7 +62,22 @@ class ReporteAccidente {
   String reporteNombre;
   String reporteCargo;
   DateTime reporteFecha;
-  String reporteFirma;
+  String? reporteFirma;
+
+  Uint8List? get firmaBytes {
+    if (reporteFirma == null || reporteFirma!.isEmpty) return null;
+    try {
+      return base64Decode(reporteFirma!);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get esFirmaImagen => reporteFirma != null && reporteFirma!.length > 100;
+
+  void setFirmaDesdeBytes(Uint8List? bytes) {
+    reporteFirma = bytes != null ? base64Encode(bytes) : null;
+  }
 
   ReporteAccidente({
     required this.id,
@@ -107,7 +125,7 @@ class ReporteAccidente {
     this.reporteNombre = '',
     this.reporteCargo = '',
     DateTime? reporteFecha,
-    this.reporteFirma = '',
+    this.reporteFirma,
   })  : fechaCreacion = fechaCreacion ?? DateTime.now(),
         fechaModificacion = fechaModificacion ?? DateTime.now(),
         accidenteFecha = accidenteFecha ?? DateTime.now(),
@@ -208,7 +226,7 @@ class ReporteAccidente {
     reporteNombre: json['reporteNombre'] as String? ?? '',
     reporteCargo: json['reporteCargo'] as String? ?? '',
     reporteFecha: json['reporteFecha'] != null ? DateTime.parse(json['reporteFecha'] as String) : DateTime.now(),
-    reporteFirma: json['reporteFirma'] as String? ?? '',
+    reporteFirma: json['reporteFirma'] as String?,
   );
 
   ReporteAccidente copyWith({String? id}) => ReporteAccidente(
