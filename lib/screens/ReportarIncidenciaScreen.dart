@@ -484,7 +484,7 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
           _campo('Nombre de quien reporta', _ctrlVinculado(_r.reporteNombre, (v) => _r.reporteNombre = v)),
           _campo('Cargo', _ctrlVinculado(_r.reporteCargo, (v) => _r.reporteCargo = v)),
           _fecha('Fecha de diligenciamiento', _r.reporteFecha, false),
-          _campo('Firma', _ctrlVinculado(_r.reporteFirma, (v) => _r.reporteFirma = v),
+          _campo('Firma', _ctrlVinculado(_r.reporteFirma ?? '', (v) => _r.reporteFirma = v),
               obligatorio: false),
         ],
       ),

@@ -103,7 +103,7 @@ class ExportadorPdf {
           _campo('Cargo', r.reporteCargo),
           _campo('Fecha de diligenciamiento',
               '${r.reporteFecha.day}/${r.reporteFecha.month}/${r.reporteFecha.year}'),
-          _campo('Firma', r.reporteFirma),
+          _campo('Firma', r.reporteFirma ?? ''),
         ]),
       ],
     );
