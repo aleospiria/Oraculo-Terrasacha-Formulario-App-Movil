@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/reporte_accidente.dart';
 import '../utils/servicio_accidentes.dart';
+import 'FirmaScreen.dart';
 
 class ReportarIncidenciaScreen extends StatefulWidget {
   final String? reporteId;
@@ -310,6 +311,59 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
     );
   }
 
+  Widget _buildFirmaWidget() {
+    final bool tieneFirma = _r.firmaBytes != null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Firma', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
+          GestureDetector(
+            onTap: _abrirFirma,
+            child: Container(
+              width: double.infinity,
+              height: 100,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: tieneFirma
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.memory(_r.firmaBytes!, fit: BoxFit.contain),
+                    )
+                  : Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.draw, color: Colors.grey[400], size: 22),
+                          const SizedBox(width: 8),
+                          Text('Toca para firmar',
+                              style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+                        ],
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _abrirFirma() async {
+    final bytes = await Navigator.push<Uint8List>(
+      context,
+      MaterialPageRoute(builder: (_) => const FirmaScreen()),
+    );
+    if (bytes != null && mounted) {
+      setState(() => _r.setFirmaDesdeBytes(bytes));
+    }
+  }
+
   Widget _buildPaso0() {
     return SingleChildScrollView(
       child: Column(
@@ -484,8 +538,7 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
           _campo('Nombre de quien reporta', _ctrlVinculado(_r.reporteNombre, (v) => _r.reporteNombre = v)),
           _campo('Cargo', _ctrlVinculado(_r.reporteCargo, (v) => _r.reporteCargo = v)),
           _fecha('Fecha de diligenciamiento', _r.reporteFecha, false),
-          _campo('Firma', _ctrlVinculado(_r.reporteFirma ?? '', (v) => _r.reporteFirma = v),
-              obligatorio: false),
+          _buildFirmaWidget(),
         ],
       ),
     );
