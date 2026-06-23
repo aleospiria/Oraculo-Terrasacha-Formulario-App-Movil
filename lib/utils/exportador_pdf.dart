@@ -23,7 +23,7 @@ class ExportadorPdf {
 
     for (final r in reportes) {
       doc.addPage(
-        pw.Page(
+        pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: pw.EdgeInsets.all(32),
           build: (ctx) => _buildPagina(r),
@@ -34,13 +34,11 @@ class ExportadorPdf {
     return await doc.save();
   }
 
-  static pw.Widget _buildPagina(ReporteAccidente r) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        _titulo(),
-        pw.SizedBox(height: 16),
-        _seccion('1. Información del empleador', [
+  static List<pw.Widget> _buildPagina(ReporteAccidente r) {
+    return [
+      _titulo(),
+      pw.SizedBox(height: 16),
+      _seccion('1. Información del empleador', [
           _campo('Razón social', r.razonSocial),
           _campo('NIT', r.nit),
           _campo('Dirección principal', r.direccion),
@@ -103,10 +101,27 @@ class ExportadorPdf {
           _campo('Cargo', r.reporteCargo),
           _campo('Fecha de diligenciamiento',
               '${r.reporteFecha.day}/${r.reporteFecha.month}/${r.reporteFecha.year}'),
-          _campo('Firma', r.reporteFirma ?? ''),
+          if (r.esFirmaImagen && r.firmaBytes != null)
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(top: 4),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.SizedBox(
+                    width: 120,
+                    child: pw.Text('Firma:', style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+                  ),
+                  pw.Container(
+                    constraints: const pw.BoxConstraints(maxHeight: 50, maxWidth: 150),
+                    child: pw.Image(pw.MemoryImage(r.firmaBytes!)),
+                  ),
+                ],
+              ),
+            )
+          else
+            _campo('Firma', r.reporteFirma ?? ''),
         ]),
-      ],
-    );
+      ];
   }
 
   static pw.Widget _titulo() {
