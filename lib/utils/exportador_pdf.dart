@@ -1,4 +1,5 @@
 import  'dart:io';
+import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -22,11 +23,12 @@ class ExportadorPdf {
     final doc = pw.Document();
 
     for (final r in reportes) {
+      final fotos = await _leerFotos(r.id, r.fotosEvidencia);
       doc.addPage(
         pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
           margin: pw.EdgeInsets.all(32),
-          build: (ctx) => _buildPagina(r),
+          build: (ctx) => _buildPagina(r, fotosBytes: fotos),
         ),
       );
     }
@@ -34,7 +36,25 @@ class ExportadorPdf {
     return await doc.save();
   }
 
-  static List<pw.Widget> _buildPagina(ReporteAccidente r) {
+  static Future<Map<String, List<int>>> _leerFotos(
+      String id, List<String> nombres) async {
+    if (nombres.isEmpty) return {};
+    final appDir = await getApplicationDocumentsDirectory();
+    final dir = Directory('${appDir.path}/reportes_accidentes/${id}_fotos');
+    if (!await dir.exists()) return {};
+
+    final map = <String, List<int>>{};
+    for (final nombre in nombres) {
+      final file = File('${dir.path}/$nombre');
+      if (await file.exists()) {
+        map[nombre] = await file.readAsBytes();
+      }
+    }
+    return map;
+  }
+
+  static List<pw.Widget> _buildPagina(ReporteAccidente r,
+      {Map<String, List<int>>? fotosBytes}) {
     return [
       _titulo(),
       pw.SizedBox(height: 16),
@@ -82,6 +102,21 @@ class ExportadorPdf {
           if (r.accidenteChequeoPreop && r.accidenteResultadoChequeo != null)
             _campo('Resultado chequeo', r.accidenteResultadoChequeo!),
           _campo('Causa principal', r.accidenteCausaPrincipal),
+          if (fotosBytes != null && fotosBytes.isNotEmpty) ...[
+            pw.SizedBox(height: 8),
+            pw.Text('Fotos de evidencia:',
+                style: pw.TextStyle(
+                    fontSize: 9, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            ...fotosBytes.entries.map((e) => pw.SizedBox(
+                  width: 400,
+                  child: pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 4),
+                    child: pw.Image(pw.MemoryImage(Uint8List.fromList(e.value)),
+                        fit: pw.BoxFit.contain),
+                  ),
+                )),
+          ],
         ]),
         _seccion('5. Condiciones del entorno', [
           _campo('Condiciones climáticas', r.entornoClima),
