@@ -1,5 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/reporte_accidente.dart';
 import '../utils/servicio_accidentes.dart';
 import 'FirmaScreen.dart';
@@ -22,6 +24,7 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
   bool _cargando = false;
   late ReporteAccidente _r;
   bool _editando = false;
+  String? _baseDir;
 
   final List<TextEditingController> _controllers = [];
 
@@ -32,6 +35,9 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
   }
 
   Future<void> _inicializar() async {
+    final dir = await _servicio.directorio;
+    _baseDir = dir.path;
+
     if (widget.reporteId != null) {
       final existente = await _servicio.obtener(widget.reporteId!);
       if (existente != null) {
@@ -354,6 +360,103 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
     );
   }
 
+  Widget _buildFotosWidget() {
+    final fotos = _r.fotosEvidencia;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (fotos.isNotEmpty)
+            SizedBox(
+              height: 90,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  ...List.generate(fotos.length, (i) => _buildFotoThumb(i)),
+                  _buildFotoAddBoton(),
+                ],
+              ),
+            )
+          else
+            _buildFotoAddBoton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFotoThumb(int index) {
+    final path = '${_baseDir!}/${_r.id}_fotos/${_r.fotosEvidencia[index]}';
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              File(path),
+              width: 90,
+              height: 90,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                width: 90,
+                height: 90,
+                color: Colors.grey[200],
+                child: Icon(Icons.broken_image, color: Colors.grey[400]),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: GestureDetector(
+              onTap: () => _eliminarFoto(index),
+              child: Container(
+                padding: const EdgeInsets.all(2),
+                decoration: const BoxDecoration(
+                  color: Colors.black54,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close, color: Colors.white, size: 16),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFotoAddBoton() {
+    return GestureDetector(
+      onTap: _tomarFoto,
+      child: Container(
+        width: 90,
+        height: 90,
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.camera_alt, color: Colors.grey[500], size: 28),
+            const SizedBox(height: 4),
+            Text('Tomar foto', style: TextStyle(color: Colors.grey[500], fontSize: 11)),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _abrirFirma() async {
     final bytes = await Navigator.push<Uint8List>(
       context,
@@ -362,6 +465,23 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
     if (bytes != null && mounted) {
       setState(() => _r.setFirmaDesdeBytes(bytes));
     }
+  }
+
+  Future<void> _tomarFoto() async {
+    final picker = ImagePicker();
+    final xFile = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+    if (xFile == null || !mounted) return;
+
+    final nombre = await _servicio.guardarFoto(_r.id, File(xFile.path));
+    setState(() => _r.fotosEvidencia = [..._r.fotosEvidencia, nombre]);
+  }
+
+  Future<void> _eliminarFoto(int index) async {
+    final nombre = _r.fotosEvidencia[index];
+    await _servicio.eliminarFoto(_r.id, nombre);
+    setState(() {
+      _r.fotosEvidencia = [..._r.fotosEvidencia]..removeAt(index);
+    });
   }
 
   Widget _buildPaso0() {
@@ -487,6 +607,10 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
                 (v) => setState(() => _r.accidenteResultadoChequeo = v)),
           _dropdown('Causa principal', _r.accidenteCausaPrincipal, ReporteAccidente.causasPrincipales,
               (v) => setState(() => _r.accidenteCausaPrincipal = v!)),
+          const SizedBox(height: 16),
+          const Text('Evidencia fotográfica', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          _buildFotosWidget(),
         ],
       ),
     );
