@@ -30,6 +30,9 @@ class ReporteAccidente {
   String predioDepartamento;
   String visitaTipoActividad;
 
+  // Evidencia fotográfica
+  List<String> fotosEvidencia;
+
   // 4. Información del accidente
   DateTime accidenteFecha;
   String accidenteMes; // auto
@@ -100,6 +103,7 @@ class ReporteAccidente {
     this.predioMunicipio = '',
     this.predioDepartamento = '',
     this.visitaTipoActividad = '',
+    this.fotosEvidencia = const [],
     DateTime? accidenteFecha,
     this.accidenteMes = '',
     this.accidenteHora = '',
@@ -152,6 +156,7 @@ class ReporteAccidente {
     'predioMunicipio': predioMunicipio,
     'predioDepartamento': predioDepartamento,
     'visitaTipoActividad': visitaTipoActividad,
+    'fotosEvidencia': fotosEvidencia,
     'accidenteFecha': accidenteFecha.toIso8601String(),
     'accidenteMes': accidenteMes,
     'accidenteHora': accidenteHora,
@@ -201,6 +206,7 @@ class ReporteAccidente {
     predioMunicipio: json['predioMunicipio'] as String? ?? '',
     predioDepartamento: json['predioDepartamento'] as String? ?? '',
     visitaTipoActividad: json['visitaTipoActividad'] as String? ?? '',
+    fotosEvidencia: (json['fotosEvidencia'] as List<dynamic>?)?.cast<String>() ?? [],
     accidenteFecha: json['accidenteFecha'] != null ? DateTime.parse(json['accidenteFecha'] as String) : DateTime.now(),
     accidenteMes: json['accidenteMes'] as String? ?? '',
     accidenteHora: json['accidenteHora'] as String? ?? '',
@@ -250,6 +256,7 @@ class ReporteAccidente {
     predioMunicipio: predioMunicipio,
     predioDepartamento: predioDepartamento,
     visitaTipoActividad: visitaTipoActividad,
+    fotosEvidencia: fotosEvidencia,
     accidenteFecha: accidenteFecha,
     accidenteMes: accidenteMes,
     accidenteHora: accidenteHora,
