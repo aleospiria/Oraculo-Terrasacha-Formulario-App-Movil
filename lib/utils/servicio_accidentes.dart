@@ -30,14 +30,6 @@ class ServicioAccidentes {
     return dir;
   }
 
-  Future<Directory> _directorioAudios(String id) async {
-    final dir = Directory('${(await directorio).path}/${id}_audios');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-    return dir;
-  }
-
   Future<List<ReporteAccidente>> listar() async {
     final dir = await directorio;
     final files = dir.listSync().whereType<File>().toList();
@@ -80,16 +72,6 @@ class ServicioAccidentes {
     return nombre;
   }
 
-  Future<String> guardarAudio(String id, File audio) async {
-    final dir = await _directorioAudios(id);
-    final ts = DateTime.now();
-    final nombre = 'audio_${ts.year}${ts.month.toString().padLeft(2, '0')}${ts.day.toString().padLeft(2, '0')}_'
-        '${ts.hour.toString().padLeft(2, '0')}${ts.minute.toString().padLeft(2, '0')}${ts.second.toString().padLeft(2, '0')}.m4a';
-    final destino = File('${dir.path}/$nombre');
-    await audio.copy(destino.path);
-    return nombre;
-  }
-
   Future<void> eliminarFoto(String id, String nombreFoto) async {
     final dir = await _directorioFotos(id);
     final file = File('${dir.path}/$nombreFoto');
@@ -103,19 +85,6 @@ class ServicioAccidentes {
     return '${dir.path}/$nombreFoto';
   }
 
-  Future<void> eliminarAudio(String id, String nombreAudio) async {
-    final dir = await _directorioAudios(id);
-    final file = File('${dir.path}/$nombreAudio');
-    if (await file.exists()) {
-      await file.delete();
-    }
-  }
-
-  Future<String> obtenerRutaAudio(String id, String nombreAudio) async {
-    final dir = await _directorioAudios(id);
-    return '${dir.path}/$nombreAudio';
-  }
-
   Future<void> eliminar(String id) async {
     final file = File(await _rutaArchivo(id));
     if (await file.exists()) {
@@ -125,7 +94,7 @@ class ServicioAccidentes {
     if (await fotosDir.exists()) {
       await fotosDir.delete(recursive: true);
     }
-    final audiosDir = await _directorioAudios(id);
+    final audiosDir = Directory('${(await directorio).path}/${id}_audios');
     if (await audiosDir.exists()) {
       await audiosDir.delete(recursive: true);
     }

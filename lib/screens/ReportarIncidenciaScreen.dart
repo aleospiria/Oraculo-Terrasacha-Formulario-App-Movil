@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:record/record.dart';
+import 'package:just_audio/just_audio.dart';
 import '../models/reporte_accidente.dart';
 import '../utils/servicio_accidentes.dart';
+import '../utils/servicio_audios.dart';
 import 'FirmaScreen.dart';
 
 class ReportarIncidenciaScreen extends StatefulWidget {
@@ -25,6 +29,14 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
   late ReporteAccidente _r;
   bool _editando = false;
   String? _baseDir;
+
+  // Audio recording state
+  final AudioRecorder _audioRecorder = AudioRecorder();
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _grabandoAudio = false;
+  Duration _tiempoGrabado = Duration.zero;
+  Timer? _audioTimer;
+  int? _audioPlayingIndex;
 
   final List<TextEditingController> _controllers = [];
 
@@ -57,6 +69,9 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
 
   @override
   void dispose() {
+    _audioTimer?.cancel();
+    _audioRecorder.dispose();
+    _audioPlayer.dispose();
     for (final c in _controllers) {
       c.dispose();
     }
@@ -484,6 +499,233 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
     });
   }
 
+  // ============================================================
+  //  Audio (notas de voz)
+  // ============================================================
+
+  Widget _buildAudiosWidget() {
+    final audios = _r.audiosEvidencia;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...List.generate(audios.length, (i) => _buildAudioEntry(i)),
+          if (_grabandoAudio) _buildRecordButton(),
+          if (!_grabandoAudio && audios.isNotEmpty) const SizedBox(height: 8),
+          if (!_grabandoAudio) _buildRecordButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAudioEntry(int index) {
+    final duracion = _r.audiosDuracion.length > index ? _r.audiosDuracion[index] : 0;
+    final playing = _audioPlayingIndex == index;
+    final mm = (duracion ~/ 60).toString().padLeft(2, '0');
+    final ss = (duracion % 60).toString().padLeft(2, '0');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(Icons.audio_file, color: primaryColor, size: 22),
+          const SizedBox(width: 8),
+          Text('Nota de voz ${index + 1}',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          const Spacer(),
+          Text('$mm:$ss',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () => _togglePlayAudio(index),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: primaryColor.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                playing ? Icons.pause : Icons.play_arrow,
+                color: primaryColor,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => _eliminarAudio(index),
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFEBEE),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, color: Colors.red, size: 16),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecordButton() {
+    if (_grabandoAudio) {
+      return Container(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Grabando ${_fmtDuration(_tiempoGrabado)}',
+              style: const TextStyle(fontSize: 13, color: Colors.red),
+            ),
+            const Spacer(),
+            GestureDetector(
+              onTap: _detenerGrabacionAudio,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.stop, color: Colors.red, size: 18),
+                    SizedBox(width: 4),
+                    Text('Detener', style: TextStyle(color: Colors.red, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: _iniciarGrabacionAudio,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.mic_none, color: Colors.grey[500], size: 20),
+            const SizedBox(width: 6),
+            Text('Agregar nota de voz',
+                style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fmtDuration(Duration d) {
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _iniciarGrabacionAudio() async {
+    final hasPermission = await _audioRecorder.hasPermission();
+    if (!hasPermission) return;
+
+    final dir = await _servicio.directorio;
+    final path = '${dir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+    await _audioRecorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000, sampleRate: 44100),
+      path: path,
+    );
+
+    setState(() {
+      _grabandoAudio = true;
+      _tiempoGrabado = Duration.zero;
+    });
+
+    _audioTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      setState(() => _tiempoGrabado += const Duration(seconds: 1));
+    });
+  }
+
+  Future<void> _detenerGrabacionAudio() async {
+    _audioTimer?.cancel();
+    final path = await _audioRecorder.stop();
+
+    if (path == null || !mounted) return;
+
+    final duracion = _tiempoGrabado.inSeconds;
+    final nombre = await ServicioAudios.guardarAudio(_r.id, File(path));
+
+    setState(() {
+      _grabandoAudio = false;
+      _r.audiosEvidencia = [..._r.audiosEvidencia, nombre];
+      _r.audiosDuracion = [..._r.audiosDuracion, duracion];
+    });
+  }
+
+  Future<void> _togglePlayAudio(int index) async {
+    if (_audioPlayingIndex == index) {
+      await _audioPlayer.pause();
+      setState(() => _audioPlayingIndex = null);
+      return;
+    }
+
+    final nombre = _r.audiosEvidencia[index];
+    final ruta = await ServicioAudios.obtenerRutaAudio(_r.id, nombre);
+
+    try {
+      await _audioPlayer.setFilePath(ruta);
+      await _audioPlayer.play();
+      setState(() => _audioPlayingIndex = index);
+      _audioPlayer.playerStateStream.firstWhere(
+        (s) => s.processingState == ProcessingState.completed,
+      ).then((_) {
+        if (mounted) setState(() => _audioPlayingIndex = null);
+      });
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al reproducir el audio')),
+        );
+      }
+    }
+  }
+
+  Future<void> _eliminarAudio(int index) async {
+    final nombre = _r.audiosEvidencia[index];
+    await ServicioAudios.eliminarAudio(_r.id, nombre);
+    if (_audioPlayingIndex == index) {
+      await _audioPlayer.stop();
+      _audioPlayingIndex = null;
+    }
+    setState(() {
+      _r.audiosEvidencia = [..._r.audiosEvidencia]..removeAt(index);
+      _r.audiosDuracion = [..._r.audiosDuracion]..removeAt(index);
+    });
+  }
+
   Widget _buildPaso0() {
     return SingleChildScrollView(
       child: Column(
@@ -662,6 +904,11 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
           _campo('Nombre de quien reporta', _ctrlVinculado(_r.reporteNombre, (v) => _r.reporteNombre = v)),
           _campo('Cargo', _ctrlVinculado(_r.reporteCargo, (v) => _r.reporteCargo = v)),
           _fecha('Fecha de diligenciamiento', _r.reporteFecha, false),
+          const SizedBox(height: 16),
+          const Text('Notas de voz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          _buildAudiosWidget(),
+          const SizedBox(height: 16),
           _buildFirmaWidget(),
         ],
       ),

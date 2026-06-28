@@ -1,9 +1,55 @@
-// lib/Utils/GrabadorAudio.dart
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:audio_session/audio_session.dart';
+
+// ============================================================
+//  Gestión de archivos de audio (persistencia local)
+// ============================================================
+
+class ServicioAudios {
+  ServicioAudios._();
+
+  static Future<Directory> _directorioAudios(String id) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final dir = Directory('${appDir.path}/reportes_accidentes/${id}_audios');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
+  }
+
+  static Future<String> guardarAudio(String id, File audio) async {
+    final dir = await _directorioAudios(id);
+    final ts = DateTime.now();
+    final nombre =
+        'audio_${ts.year}${ts.month.toString().padLeft(2, '0')}${ts.day.toString().padLeft(2, '0')}_'
+        '${ts.hour.toString().padLeft(2, '0')}${ts.minute.toString().padLeft(2, '0')}${ts.second.toString().padLeft(2, '0')}.m4a';
+    final destino = File('${dir.path}/$nombre');
+    await audio.copy(destino.path);
+    return nombre;
+  }
+
+  static Future<void> eliminarAudio(String id, String nombreAudio) async {
+    final dir = await _directorioAudios(id);
+    final file = File('${dir.path}/$nombreAudio');
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  static Future<String> obtenerRutaAudio(String id, String nombreAudio) async {
+    final dir = await _directorioAudios(id);
+    return '${dir.path}/$nombreAudio';
+  }
+}
+
+// ============================================================
+//  Widget: grabadorAudio — grabar y reproducir una nota de voz
+// ============================================================
 
 class grabadorAudio extends StatefulWidget {
   final ValueChanged<String>? onGrabacionCompleta;
@@ -81,7 +127,8 @@ class _grabadorAudioState extends State<grabadorAudio> {
     await _player.stop();
 
     final dir = await getApplicationDocumentsDirectory();
-    final path = '${dir.path}/grabacion_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    final path =
+        '${dir.path}/grabacion_${DateTime.now().millisecondsSinceEpoch}.m4a';
 
     await _recorder.start(
       const RecordConfig(
@@ -182,7 +229,8 @@ class _grabadorAudioState extends State<grabadorAudio> {
         children: [
           const Text(
             'Registro de Audio',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(
+                fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
           ),
           const SizedBox(height: 16),
 
@@ -198,9 +246,11 @@ class _grabadorAudioState extends State<grabadorAudio> {
                     decoration: BoxDecoration(
                       color: primaryColor.withOpacity(0.12),
                       shape: BoxShape.circle,
-                      border: Border.all(color: primaryColor.withOpacity(0.3), width: 2),
+                      border: Border.all(
+                          color: primaryColor.withOpacity(0.3), width: 2),
                     ),
-                    child: const Icon(Icons.mic_none, color: primaryColor, size: 30),
+                    child: const Icon(Icons.mic_none,
+                        color: primaryColor, size: 30),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -212,7 +262,10 @@ class _grabadorAudioState extends State<grabadorAudio> {
                 ),
                 Text(
                   '00:00 / ${_fmt(widget.duracionMaxima)}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54),
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54),
                 ),
               ],
             ),
@@ -228,7 +281,8 @@ class _grabadorAudioState extends State<grabadorAudio> {
                   decoration: BoxDecoration(
                     color: Colors.red.withOpacity(0.15),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.red.withOpacity(0.3), width: 2),
+                    border:
+                        Border.all(color: Colors.red.withOpacity(0.3), width: 2),
                   ),
                   child: const Icon(Icons.mic, color: Colors.red, size: 30),
                 ),
@@ -237,7 +291,10 @@ class _grabadorAudioState extends State<grabadorAudio> {
                 const SizedBox(width: 12),
                 Text(
                   '${_fmt(_tiempoGrabado)} / ${_fmt(widget.duracionMaxima)}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54),
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54),
                 ),
               ],
             ),
@@ -256,7 +313,6 @@ class _grabadorAudioState extends State<grabadorAudio> {
           if (_grabacionTerminada && _rutaArchivo != null) ...[
             Row(
               children: [
-                // Botón play/pause
                 GestureDetector(
                   onTap: _toggleReproduccion,
                   child: Container(
@@ -265,7 +321,8 @@ class _grabadorAudioState extends State<grabadorAudio> {
                     decoration: BoxDecoration(
                       color: primaryColor.withOpacity(0.12),
                       shape: BoxShape.circle,
-                      border: Border.all(color: primaryColor.withOpacity(0.3), width: 2),
+                      border: Border.all(
+                          color: primaryColor.withOpacity(0.3), width: 2),
                     ),
                     child: Icon(
                       _reproduciendo ? Icons.pause : Icons.play_arrow,
@@ -279,7 +336,10 @@ class _grabadorAudioState extends State<grabadorAudio> {
                 const SizedBox(width: 12),
                 Text(
                   '${_fmt(_reproduciendo ? _posicionReproduccion : _tiempoGrabado)} / ${_fmt(_duracionAudio > Duration.zero ? _duracionAudio : _tiempoGrabado)}',
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black54),
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54),
                 ),
               ],
             ),
@@ -290,7 +350,8 @@ class _grabadorAudioState extends State<grabadorAudio> {
               SliderTheme(
                 data: SliderThemeData(
                   trackHeight: 3,
-                  thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 6),
                   activeTrackColor: primaryColor,
                   inactiveTrackColor: primaryColor.withOpacity(0.2),
                   thumbColor: primaryColor,
@@ -312,7 +373,8 @@ class _grabadorAudioState extends State<grabadorAudio> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: primaryColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -320,11 +382,15 @@ class _grabadorAudioState extends State<grabadorAudio> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_circle, color: primaryColor, size: 16),
+                      Icon(Icons.check_circle,
+                          color: primaryColor, size: 16),
                       const SizedBox(width: 6),
                       Text(
                         'Audio grabado',
-                        style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 12),
+                        style: TextStyle(
+                            color: primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
                       ),
                     ],
                   ),
@@ -333,8 +399,10 @@ class _grabadorAudioState extends State<grabadorAudio> {
                 TextButton.icon(
                   onPressed: _reiniciarGrabacion,
                   icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Grabar de nuevo', style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(foregroundColor: Colors.grey.shade600),
+                  label: const Text('Grabar de nuevo',
+                      style: TextStyle(fontSize: 12)),
+                  style:
+                      TextButton.styleFrom(foregroundColor: Colors.grey.shade600),
                 ),
               ],
             ),
@@ -423,15 +491,205 @@ class _OndasEstaticasPainter extends CustomPainter {
     const barCount = 25;
     final spacing = size.width / barCount;
     final centerY = size.height / 2;
-    final heights = [0.3, 0.5, 0.7, 0.9, 0.6, 0.8, 1.0, 0.7, 0.5, 0.9, 0.4, 0.8, 0.6, 0.95, 0.5, 0.7, 0.85, 0.4, 0.6, 0.9, 0.5, 0.75, 0.6, 0.8, 0.3];
+    final heights = [
+      0.3, 0.5, 0.7, 0.9, 0.6, 0.8, 1.0, 0.7, 0.5, 0.9, 0.4, 0.8, 0.6,
+      0.95, 0.5, 0.7, 0.85, 0.4, 0.6, 0.9, 0.5, 0.75, 0.6, 0.8, 0.3
+    ];
 
     for (int i = 0; i < barCount; i++) {
       final x = i * spacing + spacing / 2;
       final h = heights[i % heights.length] * size.height * 0.8;
-      canvas.drawLine(Offset(x, centerY - h / 2), Offset(x, centerY + h / 2), paint);
+      canvas.drawLine(
+          Offset(x, centerY - h / 2), Offset(x, centerY + h / 2), paint);
     }
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+// ============================================================
+//  Widget: AudioPlayerTile — reproductor de audio remoto/local
+// ============================================================
+
+class AudioPlayerTile extends StatefulWidget {
+  final String url;
+  final String? title;
+  final bool dense;
+
+  const AudioPlayerTile({
+    super.key,
+    required this.url,
+    this.title,
+    this.dense = false,
+  });
+
+  @override
+  State<AudioPlayerTile> createState() => _AudioPlayerTileState();
+}
+
+class _AudioPlayerTileState extends State<AudioPlayerTile> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _isLoading = true;
+  String? _error;
+
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+    _player.positionStream.listen((p) {
+      if (!mounted) return;
+      setState(() => _position = p);
+    });
+    _player.durationStream.listen((d) {
+      if (!mounted) return;
+      setState(() => _duration = d ?? Duration.zero);
+    });
+  }
+
+  Future<void> _init() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.speech());
+
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      await _player.setUrl(widget.url);
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'No se pudo cargar el audio: $e';
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant AudioPlayerTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url != widget.url) {
+      _player.stop();
+      _init();
+    }
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    final h = d.inHours;
+    return h > 0 ? '${two(h)}:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.title ?? 'Audio';
+
+    return Card(
+      child: Padding(
+        padding: EdgeInsets.all(widget.dense ? 10 : 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+
+            if (_error != null)
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+
+            if (_isLoading) ...[
+              const SizedBox(height: 6),
+              const LinearProgressIndicator(),
+              const SizedBox(height: 6),
+              const Text('Cargando audio...'),
+            ] else ...[
+              StreamBuilder<PlayerState>(
+                stream: _player.playerStateStream,
+                builder: (context, snap) {
+                  final state = snap.data;
+                  final playing = state?.playing ?? false;
+                  final processing = state?.processingState;
+
+                  final buffering = processing == ProcessingState.buffering ||
+                      processing == ProcessingState.loading;
+
+                  return Row(
+                    children: [
+                      IconButton(
+                        iconSize: 34,
+                        onPressed: buffering
+                            ? null
+                            : () async {
+                                if (playing) {
+                                  await _player.pause();
+                                } else {
+                                  await _player.play();
+                                }
+                              },
+                        icon: Icon(
+                          playing ? Icons.pause_circle : Icons.play_circle,
+                        ),
+                      ),
+                      if (buffering) ...[
+                        const SizedBox(width: 8),
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ],
+                      const Spacer(),
+                      Text('${_fmt(_position)} / ${_fmt(_duration)}'),
+                    ],
+                  );
+                },
+              ),
+
+              Slider(
+                min: 0,
+                max: (_duration.inMilliseconds > 0)
+                    ? _duration.inMilliseconds.toDouble()
+                    : 1,
+                value: _position.inMilliseconds
+                    .clamp(0, _duration.inMilliseconds)
+                    .toDouble(),
+                onChanged: (_duration.inMilliseconds <= 0)
+                    ? null
+                    : (v) async {
+                        await _player
+                            .seek(Duration(milliseconds: v.toInt()));
+                      },
+              ),
+
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () async {
+                    await _player.seek(Duration.zero);
+                    await _player.pause();
+                  },
+                  child: const Text('Reiniciar'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
