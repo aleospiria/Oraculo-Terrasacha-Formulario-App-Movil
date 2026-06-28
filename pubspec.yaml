@@ -30,6 +30,7 @@ dependencies:
   printing: ^5.14.3
   signature: ^5.4.0
   image_picker: ^1.1.0
+  geolocator: ^13.0.2
 
 
 dev_dependencies:
