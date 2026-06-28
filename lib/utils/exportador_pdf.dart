@@ -136,6 +136,15 @@ class ExportadorPdf {
           _campo('Cargo', r.reporteCargo),
           _campo('Fecha de diligenciamiento',
               '${r.reporteFecha.day}/${r.reporteFecha.month}/${r.reporteFecha.year}'),
+          if (r.audiosEvidencia.isNotEmpty) ...[
+            _campo('Notas de voz', '${r.audiosEvidencia.length} grabación(es)'),
+            ...List.generate(r.audiosEvidencia.length, (i) {
+              final d = r.audiosDuracion.length > i ? r.audiosDuracion[i] : 0;
+              final mm = (d ~/ 60).toString().padLeft(2, '0');
+              final ss = (d % 60).toString().padLeft(2, '0');
+              return _campo('  Nota ${i + 1}', '$mm:$ss min');
+            }),
+          ],
           if (r.esFirmaImagen && r.firmaBytes != null)
             pw.Padding(
               padding: const pw.EdgeInsets.only(top: 4),
