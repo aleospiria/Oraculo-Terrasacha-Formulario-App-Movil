@@ -33,6 +33,10 @@ class ReporteAccidente {
   // Evidencia fotográfica
   List<String> fotosEvidencia;
 
+  // Evidencia de audio (notas de voz)
+  List<String> audiosEvidencia;
+  List<int> audiosDuracion;
+
   // 4. Información del accidente
   DateTime accidenteFecha;
   String accidenteMes; // auto
@@ -104,6 +108,8 @@ class ReporteAccidente {
     this.predioDepartamento = '',
     this.visitaTipoActividad = '',
     this.fotosEvidencia = const [],
+    this.audiosEvidencia = const [],
+    this.audiosDuracion = const [],
     DateTime? accidenteFecha,
     this.accidenteMes = '',
     this.accidenteHora = '',
@@ -157,6 +163,8 @@ class ReporteAccidente {
     'predioDepartamento': predioDepartamento,
     'visitaTipoActividad': visitaTipoActividad,
     'fotosEvidencia': fotosEvidencia,
+    'audiosEvidencia': audiosEvidencia,
+    'audiosDuracion': audiosDuracion,
     'accidenteFecha': accidenteFecha.toIso8601String(),
     'accidenteMes': accidenteMes,
     'accidenteHora': accidenteHora,
@@ -207,6 +215,8 @@ class ReporteAccidente {
     predioDepartamento: json['predioDepartamento'] as String? ?? '',
     visitaTipoActividad: json['visitaTipoActividad'] as String? ?? '',
     fotosEvidencia: (json['fotosEvidencia'] as List<dynamic>?)?.cast<String>() ?? [],
+    audiosEvidencia: (json['audiosEvidencia'] as List<dynamic>?)?.cast<String>() ?? [],
+    audiosDuracion: (json['audiosDuracion'] as List<dynamic>?)?.cast<int>() ?? [],
     accidenteFecha: json['accidenteFecha'] != null ? DateTime.parse(json['accidenteFecha'] as String) : DateTime.now(),
     accidenteMes: json['accidenteMes'] as String? ?? '',
     accidenteHora: json['accidenteHora'] as String? ?? '',
@@ -257,6 +267,8 @@ class ReporteAccidente {
     predioDepartamento: predioDepartamento,
     visitaTipoActividad: visitaTipoActividad,
     fotosEvidencia: fotosEvidencia,
+    audiosEvidencia: audiosEvidencia,
+    audiosDuracion: audiosDuracion,
     accidenteFecha: accidenteFecha,
     accidenteMes: accidenteMes,
     accidenteHora: accidenteHora,
