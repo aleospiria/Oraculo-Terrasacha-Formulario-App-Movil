@@ -8,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import '../models/reporte_accidente.dart';
 import '../utils/servicio_accidentes.dart';
 import '../utils/servicio_audios.dart';
+import '../utils/servicio_coordenadas.dart';
 import 'FirmaScreen.dart';
 
 class ReportarIncidenciaScreen extends StatefulWidget {
@@ -37,6 +38,8 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
   Duration _tiempoGrabado = Duration.zero;
   Timer? _audioTimer;
   int? _audioPlayingIndex;
+
+  bool _obteniendoCoordenadas = false;
 
   final List<TextEditingController> _controllers = [];
 
@@ -726,6 +729,69 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
     });
   }
 
+  // ============================================================
+  //  Coordenadas GPS
+  // ============================================================
+
+  Widget _buildCoordenadasWidget() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Lugar exacto (coordenadas)',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.grey[300]!),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.location_on, color: primaryColor, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _r.accidenteLugarCoordenadas.isNotEmpty
+                    ? Text(_r.accidenteLugarCoordenadas,
+                        style: const TextStyle(fontSize: 14, color: Colors.black87))
+                    : Text(_obteniendoCoordenadas ? 'Obteniendo ubicación...' : 'Toca el GPS para obtener',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[400])),
+              ),
+              if (_obteniendoCoordenadas)
+                const SizedBox(width: 8, height: 8, child: CircularProgressIndicator(strokeWidth: 2))
+              else
+                GestureDetector(
+                  onTap: _obtenerCoordenadas,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.gps_fixed, color: primaryColor, size: 20),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _obtenerCoordenadas() async {
+    setState(() => _obteniendoCoordenadas = true);
+    final coords = await ServicioCoordenadas.obtenerCoordenadas();
+    if (!mounted) return;
+    setState(() {
+      _obteniendoCoordenadas = false;
+      if (coords != null) {
+        _r.accidenteLugarCoordenadas = coords;
+      }
+    });
+  }
+
   Widget _buildPaso0() {
     return SingleChildScrollView(
       child: Column(
@@ -820,7 +886,7 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
               ),
             ),
           ),
-          _campo('Lugar exacto (coordenadas)', _ctrlVinculado(_r.accidenteLugarCoordenadas, (v) => _r.accidenteLugarCoordenadas = v)),
+          _buildCoordenadasWidget(),
           _dropdown('Tipo de accidente', _r.accidenteTipo, ReporteAccidente.tiposAccidente, (v) {
             setState(() => _r.accidenteTipo = v!);
           }),
