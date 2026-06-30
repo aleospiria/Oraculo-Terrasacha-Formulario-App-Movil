@@ -21,7 +21,7 @@ class ServicioCoordenadas {
           timeLimit: Duration(seconds: 15),
         ),
       );
-      return '${pos.latitude.toStringAsFixed(6)}, ${pos.longitude.toStringAsFixed(6)}';
+      return '${pos.latitude.toStringAsFixed(8)}, ${pos.longitude.toStringAsFixed(8)}';
     } catch (_) {
       return null;
     }
