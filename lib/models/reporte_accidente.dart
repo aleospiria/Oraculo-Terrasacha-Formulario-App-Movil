@@ -65,6 +65,10 @@ class ReporteAccidente {
   String? testigoNombre;
   String? testigoContacto;
 
+  // Hash de trazabilidad
+  String? hashActual;
+  String? hashAnterior;
+
   // 7. Datos del reporte
   String reporteNombre;
   String reporteCargo;
@@ -132,6 +136,8 @@ class ReporteAccidente {
     this.entornoTipoRiesgo = '',
     this.testigoNombre,
     this.testigoContacto,
+    this.hashActual,
+    this.hashAnterior,
     this.reporteNombre = '',
     this.reporteCargo = '',
     DateTime? reporteFecha,
@@ -191,6 +197,8 @@ class ReporteAccidente {
     'reporteCargo': reporteCargo,
     'reporteFecha': reporteFecha.toIso8601String(),
     'reporteFirma': reporteFirma,
+    'hashActual': hashActual,
+    'hashAnterior': hashAnterior,
   };
 
   factory ReporteAccidente.fromJson(Map<String, dynamic> json) => ReporteAccidente(
@@ -243,6 +251,8 @@ class ReporteAccidente {
     reporteCargo: json['reporteCargo'] as String? ?? '',
     reporteFecha: json['reporteFecha'] != null ? DateTime.parse(json['reporteFecha'] as String) : DateTime.now(),
     reporteFirma: json['reporteFirma'] as String?,
+    hashActual: json['hashActual'] as String?,
+    hashAnterior: json['hashAnterior'] as String?,
   );
 
   ReporteAccidente copyWith({String? id}) => ReporteAccidente(
@@ -295,6 +305,8 @@ class ReporteAccidente {
     reporteCargo: reporteCargo,
     reporteFecha: reporteFecha,
     reporteFirma: reporteFirma,
+    hashActual: hashActual,
+    hashAnterior: hashAnterior,
   );
 
   static const List<String> tiposIdentificacion = ['CC', 'CE', 'Pasaporte', 'NIT'];

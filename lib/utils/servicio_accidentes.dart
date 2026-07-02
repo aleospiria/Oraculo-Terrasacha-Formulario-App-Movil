@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import '../models/reporte_accidente.dart';
+import 'servicio_audios.dart';
+import 'servicio_hash.dart';
 
 class ServicioAccidentes {
   static final ServicioAccidentes _instancia = ServicioAccidentes._();
@@ -58,6 +60,30 @@ class ServicioAccidentes {
   }
 
   Future<void> guardar(ReporteAccidente reporte) async {
+    final jsonMap = reporte.toJson();
+    jsonMap.remove('hashActual');
+    jsonMap.remove('hashAnterior');
+
+    final fotoPaths = <String>[];
+    for (final foto in reporte.fotosEvidencia) {
+      fotoPaths.add(await obtenerRutaFoto(reporte.id, foto));
+    }
+
+    final audioPaths = <String>[];
+    for (final audio in reporte.audiosEvidencia) {
+      audioPaths.add(await ServicioAudios.obtenerRutaAudio(reporte.id, audio));
+    }
+
+    final hash = await ServicioHash.hashReport(
+      reportJson: jsonMap,
+      fotoPaths: fotoPaths,
+      audioPaths: audioPaths,
+      firmaBase64: reporte.reporteFirma,
+    );
+
+    reporte.hashAnterior = reporte.hashActual;
+    reporte.hashActual = hash;
+
     final file = File(await _rutaArchivo(reporte.id));
     await file.writeAsString(jsonEncode(reporte.toJson()));
   }
