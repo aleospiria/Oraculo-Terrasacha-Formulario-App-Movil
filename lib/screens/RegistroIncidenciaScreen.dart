@@ -336,6 +336,24 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
                         Text(r.accidenteDescripcion, maxLines: 2, overflow: TextOverflow.ellipsis,
                             style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.3)),
                       ],
+                      if (r.hashActual != null) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.verified, size: 13, color: Colors.grey[400]),
+                            const SizedBox(width: 4),
+                            Text(
+                              r.hashActual!.substring(0, 12),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 10,
+                                color: Colors.grey[400],
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),

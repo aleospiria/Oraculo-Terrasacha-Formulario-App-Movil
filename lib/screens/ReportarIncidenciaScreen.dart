@@ -29,6 +29,7 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
   bool _cargando = false;
   late ReporteAccidente _r;
   bool _editando = false;
+  bool _inicializado = false;
   String? _baseDir;
 
   // Audio recording state
@@ -59,6 +60,7 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
         setState(() {
           _r = existente;
           _editando = true;
+          _inicializado = true;
         });
         return;
       }
@@ -67,6 +69,7 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
       _r = ReporteAccidente(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
       );
+      _inicializado = true;
     });
   }
 
@@ -976,6 +979,50 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
           _buildAudiosWidget(),
           const SizedBox(height: 16),
           _buildFirmaWidget(),
+          if (_r.hashActual != null) ...[
+            const SizedBox(height: 20),
+            const Divider(height: 1),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.verified, size: 16, color: Colors.grey[400]),
+                const SizedBox(width: 6),
+                Text('Hash de integridad',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w500)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _r.hashActual!,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 10,
+                color: Colors.grey[400],
+                letterSpacing: 0.3,
+              ),
+            ),
+            if (_r.hashAnterior != null) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.history, size: 13, color: Colors.grey[400]),
+                  const SizedBox(width: 6),
+                  Text('Hash anterior',
+                      style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                _r.hashAnterior!,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 9,
+                  color: Colors.grey[350],
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -997,7 +1044,7 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
-      body: _r.id.isEmpty
+      body: !_inicializado
           ? const Center(child: CircularProgressIndicator())
           : Stepper(
               currentStep: _currentStep,
