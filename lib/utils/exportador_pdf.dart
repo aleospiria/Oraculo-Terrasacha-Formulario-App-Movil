@@ -165,6 +165,14 @@ class ExportadorPdf {
           else
             _campo('Firma', r.reporteFirma ?? ''),
         ]),
+        if (r.hashActual != null) ...[
+          pw.SizedBox(height: 8),
+          pw.Divider(height: 1),
+          pw.SizedBox(height: 4),
+          _campo('Hash de integridad (SHA-256)', r.hashActual!),
+          if (r.hashAnterior != null)
+            _campo('Hash anterior', r.hashAnterior!),
+        ],
       ];
   }
 
