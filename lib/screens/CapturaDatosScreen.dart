@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 
 // Asegúrate de la ruta correcta. Si está en el mismo folder:
-import 'package:capturador_datos_offline/utils/reproductorAudio.dart';
+import 'package:capturador_datos_offline/utils/servicio_audios.dart';
 
 class CapturaDatosScreen extends StatefulWidget {
   const CapturaDatosScreen({super.key});
