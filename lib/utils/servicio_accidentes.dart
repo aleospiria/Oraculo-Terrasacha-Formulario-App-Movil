@@ -126,6 +126,38 @@ class ServicioAccidentes {
     }
   }
 
+  Future<String> _rutaHashMaestro() async => '${(await directorio).path}/_hash_integridad.json';
+
+  Future<String> calcularHashMaestro() async {
+    final reportes = await listar();
+    final hashes = reportes
+        .map((r) => r.hashActual)
+        .where((h) => h != null && h.isNotEmpty)
+        .cast<String>()
+        .toList();
+    if (hashes.isEmpty) return '';
+    return ServicioHash.hashListaReportes(hashes);
+  }
+
+  Future<void> guardarHashMaestro(String hash) async {
+    final file = File(await _rutaHashMaestro());
+    await file.writeAsString(jsonEncode({
+      'hashMaestro': hash,
+      'fecha': DateTime.now().toIso8601String(),
+    }));
+  }
+
+  Future<String?> obtenerHashMaestroAnterior() async {
+    final file = File(await _rutaHashMaestro());
+    if (!await file.exists()) return null;
+    try {
+      final json = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      return json['hashMaestro'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<int> contar() async {
     final dir = await directorio;
     return dir.listSync().whereType<File>().where((f) => f.path.endsWith('.json')).length;

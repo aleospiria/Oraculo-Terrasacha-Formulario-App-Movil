@@ -18,6 +18,9 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
   List<ReporteAccidente> _reportes = [];
   bool _cargando = true;
   final Set<String> _seleccionados = {};
+  String? _hashMaestro;
+  String? _hashMaestroAnterior;
+  bool _cargandoHash = false;
 
   bool get _modoSeleccion => _seleccionados.isNotEmpty;
   bool get _todosSeleccionados =>
@@ -37,6 +40,21 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
       _reportes = reportes;
       _cargando = false;
       _seleccionados.clear();
+    });
+    _cargarHashMaestro();
+  }
+
+  Future<void> _cargarHashMaestro() async {
+    setState(() => _cargandoHash = true);
+    final results = await Future.wait([
+      _servicio.calcularHashMaestro(),
+      _servicio.obtenerHashMaestroAnterior(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _hashMaestro = results[0] as String;
+      _hashMaestroAnterior = results[1] as String?;
+      _cargandoHash = false;
     });
   }
 
@@ -129,6 +147,7 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
                   onRefresh: _cargar,
                   child: Column(
                     children: [
+                      _buildHashMaestroCard(),
                       Expanded(
                         child: ListView.builder(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
@@ -243,6 +262,90 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
         ),
       );
     }
+  }
+
+  Widget _buildHashMaestroCard() {
+    if (_hashMaestro == null || _hashMaestro!.isEmpty) return const SizedBox.shrink();
+
+    final coincide = _hashMaestro == _hashMaestroAnterior;
+    final bool tieneAnterior = _hashMaestroAnterior != null && _hashMaestroAnterior!.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: coincide || !tieneAnterior ? Colors.white : Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: coincide || !tieneAnterior
+              ? Colors.grey[200]!
+              : Color(0xFFFFD54F),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                coincide || !tieneAnterior ? Icons.verified : Icons.warning_amber_rounded,
+                size: 18,
+                color: coincide || !tieneAnterior ? Colors.green : Color(0xFFF9A825),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                coincide || !tieneAnterior
+                    ? 'Integridad verificada'
+                    : '¡Se detectaron cambios!',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: coincide || !tieneAnterior ? Colors.green[700] : Color(0xFFF57F17),
+                ),
+              ),
+              const Spacer(),
+              if (_cargandoHash)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                GestureDetector(
+                  onTap: _actualizarHashMaestro,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Actualizar',
+                      style: TextStyle(fontSize: 11, color: primaryColor, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Actual:  ${_hashMaestro!.substring(0, 16)}...',
+            style: TextStyle(fontFamily: 'monospace', fontSize: 10, color: Colors.grey[600]),
+          ),
+          if (tieneAnterior)
+            Text(
+              'Anterior: ${_hashMaestroAnterior!.substring(0, 16)}...',
+              style: TextStyle(fontFamily: 'monospace', fontSize: 10, color: Colors.grey[400]),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _actualizarHashMaestro() async {
+    if (_hashMaestro == null || _hashMaestro!.isEmpty) return;
+    await _servicio.guardarHashMaestro(_hashMaestro!);
+    await _cargarHashMaestro();
   }
 
   Widget _buildCard(ReporteAccidente r) {

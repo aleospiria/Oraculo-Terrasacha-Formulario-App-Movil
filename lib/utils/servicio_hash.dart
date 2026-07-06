@@ -46,4 +46,9 @@ class ServicioHash {
     final combined = jsonHash + fileHashes.join('');
     return sha256.convert(utf8.encode(combined)).toString();
   }
+
+  static String hashListaReportes(List<String> hashes) {
+    final sorted = List<String>.from(hashes)..sort();
+    return sha256.convert(utf8.encode(sorted.join(''))).toString();
+  }
 }
