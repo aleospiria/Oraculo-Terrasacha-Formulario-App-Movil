@@ -1,6 +1,6 @@
 // lib/screens/EjecucionRegistroScreen.dart
 import 'package:flutter/material.dart';
-import 'package:capturador_datos_offline/Utils/GrabadorAudio.dart';
+import 'package:capturador_datos_offline/utils/servicio_audios.dart';
 import 'package:capturador_datos_offline/screens/FinalizarTareaScreen.dart';
 
 class EjecucionRegistroScreen extends StatefulWidget {

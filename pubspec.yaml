@@ -24,6 +24,14 @@ dependencies:
   audio_session: ^0.1.21
   record: ^6.2.0
   shared_preferences: ^2.5.5
+  path_provider: ^2.1.5
+  share_plus: ^12.0.2
+  pdf: ^3.12.0
+  printing: ^5.14.3
+  signature: ^5.4.0
+  image_picker: ^1.1.0
+  geolocator: ^13.0.2
+  crypto: ^3.0.0
 
 
 dev_dependencies:
