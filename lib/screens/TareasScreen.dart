@@ -1,6 +1,12 @@
 // lib/Screens/TareasScreen.dart
 import 'package:flutter/material.dart';
 
+import '../models/plan_campo_borrador.dart';
+import '../models/usuario_campo.dart';
+import '../screens/EjecucionRegistroScreen.dart';
+import '../utils/servicioAutenticacion.dart';
+import '../utils/servicio_salida.dart';
+
 // ── Modelos locales (se reemplazarán con modelos de DataStore) ────────────────
 
 enum EstadoTarea { enCurso, pendiente, completada }
@@ -18,6 +24,10 @@ class Tarea {
   final List<ItemChecklist> checklist;
   EstadoTarea estado;
   bool expandida;
+  final String? salidaId;
+  final String? asignacionId;
+  final String? ubicacionRuta;
+  final List<String> featureNombres;
 
   Tarea({
     required this.id,
@@ -26,6 +36,10 @@ class Tarea {
     required this.checklist,
     this.estado = EstadoTarea.enCurso,
     this.expandida = false,
+    this.salidaId,
+    this.asignacionId,
+    this.ubicacionRuta,
+    this.featureNombres = const [],
   });
 }
 
@@ -45,54 +59,9 @@ class _TareasScreenState extends State<TareasScreen>
   final Color cardColor = const Color(0xFFEEF2E6);
 
   late TabController _tabController;
+  bool _cargando = true;
 
-  // Datos de prueba
-  final List<Tarea> _tareas = [
-    Tarea(
-      id: '1',
-      titulo: 'Levantamiento de Parcela Norte',
-      descripcion: 'Revisar salud de los árboles y registrar datos de campo.',
-      expandida: true,
-      checklist: [
-        ItemChecklist(texto: 'Identificar especie forestal'),
-        ItemChecklist(texto: 'Medir DAP (Diámetro)'),
-        ItemChecklist(texto: 'Registrar coordenadas GPS'),
-        ItemChecklist(texto: 'Subir foto de la placa'),
-      ],
-    ),
-    Tarea(
-      id: '2',
-      titulo: 'Censo de árboles nativos',
-      descripcion: 'Conteo y registro de especies nativas en zona sur.',
-      checklist: [
-        ItemChecklist(texto: 'Delimitar zona de censo'),
-        ItemChecklist(texto: 'Registrar especies encontradas'),
-        ItemChecklist(texto: 'Fotografiar ejemplares'),
-      ],
-    ),
-    Tarea(
-      id: '3',
-      titulo: 'Registro fitosanitario',
-      descripcion: 'Evaluar estado sanitario de los árboles del predio.',
-      estado: EstadoTarea.pendiente,
-      checklist: [
-        ItemChecklist(texto: 'Inspección visual de plagas'),
-        ItemChecklist(texto: 'Tomar muestras de hojas'),
-        ItemChecklist(texto: 'Completar formulario sanitario'),
-      ],
-    ),
-    Tarea(
-      id: '4',
-      titulo: 'Inventario parcela sur',
-      descripcion: 'Completar inventario de la última parcela del ciclo.',
-      estado: EstadoTarea.completada,
-      checklist: [
-        ItemChecklist(texto: 'Contar individuos', completado: true),
-        ItemChecklist(texto: 'Medir alturas', completado: true),
-        ItemChecklist(texto: 'Enviar reporte', completado: true),
-      ],
-    ),
-  ];
+  final List<Tarea> _tareas = [];
 
   List<Tarea> get _enCurso =>
       _tareas.where((t) => t.estado == EstadoTarea.enCurso).toList();
@@ -105,212 +74,87 @@ class _TareasScreenState extends State<TareasScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _cargarTareas();
+  }
+
+  Future<void> _cargarTareas() async {
+    setState(() => _cargando = true);
+
+    final usuario = await servicioAutenticacion.getUsuarioActual();
+    if (usuario == null) {
+      if (mounted) setState(() => _cargando = false);
+      return;
+    }
+
+    final vistas = await ServicioSalida.listarTareasParaUsuario(usuario);
+
+    if (!mounted) return;
+    setState(() {
+      _tareas
+        ..clear()
+        ..addAll(vistas.map(_tareaDesdeVista));
+      _cargando = false;
+    });
+  }
+
+  Tarea _tareaDesdeVista(TareaSalidaVista vista) {
+    final estado = switch (vista.estado) {
+      EstadoTareaSalida.completada => EstadoTarea.completada,
+      EstadoTareaSalida.enCurso => EstadoTarea.enCurso,
+      EstadoTareaSalida.pendiente => EstadoTarea.pendiente,
+    };
+
+    return Tarea(
+      id: vista.asignacionId,
+      salidaId: vista.salidaId,
+      asignacionId: vista.asignacionId,
+      titulo: vista.templateNombre,
+      descripcion:
+          '${vista.salidaNombre} · ${vista.featureNombres.join(', ')}',
+      ubicacionRuta: vista.ubicacionRuta,
+      featureNombres: vista.featureNombres,
+      estado: estado,
+      checklist: vista.featureNombres
+          .map((f) => ItemChecklist(texto: f))
+          .toList(),
+    );
+  }
+
+  Future<void> _abrirEjecucion(Tarea tarea) async {
+    if (tarea.salidaId == null || tarea.asignacionId == null) return;
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EjecucionRegistroScreen(
+          salidaId: tarea.salidaId,
+          asignacionId: tarea.asignacionId,
+          tituloTarea: tarea.titulo,
+          ubicacionRuta: tarea.ubicacionRuta,
+          featureNombres: tarea.featureNombres,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    await _cargarTareas();
+  }
+
+  Future<void> _marcarCompletada(Tarea tarea) async {
+    if (tarea.salidaId != null && tarea.asignacionId != null) {
+      await ServicioSalida.actualizarEstadoAsignacion(
+        salidaId: tarea.salidaId!,
+        asignacionId: tarea.asignacionId!,
+        estado: EstadoAsignacionEjecucion.completada,
+      );
+    }
+    setState(() => tarea.estado = EstadoTarea.completada);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
-  }
-
-  // ── Diálogo nueva tarea ───────────────────────────────────────────────────
-
-  Future<void> _mostrarDialogoNuevaTarea() async {
-    final tituloCtrl = TextEditingController();
-    String? proyectoSeleccionado;
-    String? asignadoA;
-
-    final proyectos = ['Meta Navajas', 'proyecto prueba', 'sisi'];
-    final usuarios = ['Juan Pérez', 'María García', 'Carlos López'];
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModal) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Crear nueva tarea',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: primaryColor,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Nombre de la tarea
-              TextField(
-                controller: tituloCtrl,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Registro fitosanitario',
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[200]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[200]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: primaryColor, width: 1.5),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              // Proyecto asociado
-              _buildDropdownModal(
-                hint: 'Proyecto asociado',
-                icono: Icons.folder_outlined,
-                valor: proyectoSeleccionado,
-                opciones: proyectos,
-                onChanged: (v) => setModal(() => proyectoSeleccionado = v),
-              ),
-              const SizedBox(height: 12),
-
-              // Asignar a
-              _buildDropdownModal(
-                hint: 'Asignar a',
-                icono: Icons.person_outline,
-                valor: asignadoA,
-                opciones: usuarios,
-                onChanged: (v) => setModal(() => asignadoA = v),
-              ),
-              const SizedBox(height: 24),
-
-              // Botones
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: Colors.grey[300]!),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text(
-                        'Cancelar',
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 0,
-                      ),
-                      onPressed: () {
-                        final titulo = tituloCtrl.text.trim();
-                        if (titulo.isEmpty) return;
-                        setState(() {
-                          _tareas.insert(
-                            0,
-                            Tarea(
-                              id: DateTime.now()
-                                  .millisecondsSinceEpoch
-                                  .toString(),
-                              titulo: titulo,
-                              descripcion: proyectoSeleccionado != null
-                                  ? 'Proyecto: $proyectoSeleccionado'
-                                  : 'Sin proyecto asociado',
-                              checklist: [],
-                              estado: EstadoTarea.pendiente,
-                            ),
-                          );
-                        });
-                        Navigator.pop(ctx);
-                      },
-                      child: const Text(
-                        'Crear tarea',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDropdownModal({
-    required String hint,
-    required IconData icono,
-    required String? valor,
-    required List<String> opciones,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          hint: Row(
-            children: [
-              Icon(icono, color: Colors.grey[400], size: 18),
-              const SizedBox(width: 8),
-              Text(hint, style: TextStyle(color: Colors.grey[400], fontSize: 14)),
-            ],
-          ),
-          value: valor,
-          icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey[400]),
-          items: opciones
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -365,18 +209,15 @@ class _TareasScreenState extends State<TareasScreen>
           ],
         ),
       ),
-      body: TabBarView(
+      body: _cargando
+          ? Center(child: CircularProgressIndicator(color: primaryColor))
+          : TabBarView(
         controller: _tabController,
         children: [
           _buildListaTareas(_enCurso),
           _buildListaTareas(_pendientes),
           _buildListaTareas(_completadas),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: primaryColor,
-        onPressed: _mostrarDialogoNuevaTarea,
-        child: const Icon(Icons.add, color: Colors.white, size: 28),
       ),
     );
   }
@@ -557,8 +398,32 @@ class _TareasScreenState extends State<TareasScreen>
 
                   const SizedBox(height: 14),
 
-                  // Botón marcar completada
-                  if (tarea.estado != EstadoTarea.completada)
+                  if (tarea.estado != EstadoTarea.completada &&
+                      tarea.salidaId != null &&
+                      tarea.asignacionId != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryColor,
+                          side: BorderSide(color: primaryColor),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        onPressed: () => _abrirEjecucion(tarea),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text(
+                          'Ejecutar registro',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+
+                  if (tarea.estado != EstadoTarea.completada) ...[
+                    if (tarea.salidaId != null && tarea.asignacionId != null)
+                      const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -572,12 +437,12 @@ class _TareasScreenState extends State<TareasScreen>
                           ),
                           elevation: 0,
                         ),
-                        onPressed: () {
+                        onPressed: () async {
+                          await _marcarCompletada(tarea);
+                          if (!mounted) return;
                           setState(() {
-                            tarea.estado = EstadoTarea.completada;
                             tarea.expandida = false;
-                            // Marcar todos los items del checklist
-                            for (var item in tarea.checklist) {
+                            for (final item in tarea.checklist) {
                               item.completado = true;
                             }
                           });
@@ -588,6 +453,7 @@ class _TareasScreenState extends State<TareasScreen>
                         ),
                       ),
                     ),
+                  ],
                   const SizedBox(height: 14),
                 ],
               ),

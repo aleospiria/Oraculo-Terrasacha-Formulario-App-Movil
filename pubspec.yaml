@@ -24,6 +24,13 @@ dependencies:
   audio_session: ^0.1.21
   record: ^6.2.0
   shared_preferences: ^2.5.5
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  geolocator: ^13.0.2
+  http: ^1.2.2
+  image_picker: ^1.2.3
+  signature: ^6.3.0
+  path_provider: ^2.1.6
 
 
 dev_dependencies:

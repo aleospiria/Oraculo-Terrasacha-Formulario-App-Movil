@@ -1,0 +1,7 @@
+{
+  "name": "crearUsuarioCampo",
+  "version": "1.0.0",
+  "description": "Lambda para crear usuarios de campo en Cognito y tabla User",
+  "main": "index.js",
+  "dependencies": {}
+}

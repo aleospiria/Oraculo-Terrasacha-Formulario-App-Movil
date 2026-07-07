@@ -1,0 +1,11 @@
+{
+  "requestContext": {
+    "http": {
+      "method": "POST"
+    }
+  },
+  "headers": {
+    "authorization": "Bearer REPLACE_WITH_ID_TOKEN"
+  },
+  "body": "{\"action\":\"create\",\"nombre\":\"Carlos Ruiz\",\"email\":\"carlos@example.com\",\"rol\":\"operador\",\"mediciones\":[\"Temperatura\"]}"
+}

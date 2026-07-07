@@ -25,6 +25,14 @@ export type AmplifyDependentResourcesAttributes = {
       "Name": "string",
       "Region": "string"
     },
+    "crearUsuarioCampo": {
+      "Arn": "string",
+      "FunctionUrl": "string",
+      "LambdaExecutionRole": "string",
+      "LambdaExecutionRoleArn": "string",
+      "Name": "string",
+      "Region": "string"
+    },
     "kobotoolboxProxy": {
       "Arn": "string",
       "LambdaExecutionRole": "string",

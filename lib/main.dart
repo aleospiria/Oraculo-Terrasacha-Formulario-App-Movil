@@ -22,6 +22,7 @@ import 'Screens/LoginScreen.dart';
 import 'Screens/RegisterScreen.dart';
 import 'Screens/VerificacionScreen.dart';
 import 'utils/servicioAutenticacion.dart';
+import 'utils/servicio_retencion_datos.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // StreamController para notificar cuando la sincronización esté lista
@@ -117,6 +118,9 @@ Future<void> _configureAmplify() async {
     await Amplify.addPlugin(AmplifyAuthCognito());
     await Amplify.configure(amplifyconfig);
     await Amplify.DataStore.start();
+
+    // Purgar datos de campo expirados del dispositivo
+    await ServicioRetencionDatos.ejecutarAlArrancar();
 
     // Verificar si ya hay datos en local (offline-first)
     await _verificarDatosLocales();

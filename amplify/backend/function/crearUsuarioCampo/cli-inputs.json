@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "serviceConfiguration": {
+    "serviceName": "Lambda",
+    "serviceType": "AWS_LAMBDA",
+    "providerPlugin": "awscloudformation",
+    "dependsOn": [
+      {
+        "category": "api",
+        "resourceName": "tsbeoraculoapi",
+        "attributes": [
+          "GraphQLAPIEndpointOutput",
+          "GraphQLAPIKeyOutput"
+        ]
+      },
+      {
+        "category": "auth",
+        "resourceName": "tsbeoraculoapi7e5484f0",
+        "attributes": [
+          "UserPoolId",
+          "AppClientID"
+        ]
+      }
+    ],
+    "build": true,
+    "runtime": "nodejs18.x",
+    "functionName": "crearUsuarioCampo",
+    "handler": "index.handler",
+    "roleName": "crearUsuarioCampoLambdaRole",
+    "environmentVariables": {
+      "SES_EMAIL": "notificaciones@terrasacha.com",
+      "SES_REGION": "us-east-1"
+    }
+  }
+}

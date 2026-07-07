@@ -1,0 +1,87 @@
+/// Utilidades compartidas para roles de campo (Cognito y etiquetas UI).
+class RolesCampo {
+  RolesCampo._();
+
+  static bool esOperador(String rol) => rol.toLowerCase().trim() == 'operador';
+
+  static bool esLiderCuadrilla(String rol) {
+    final n = rol.toLowerCase().trim().replaceAll('_', ' ');
+    return n == 'lider cuadrilla' ||
+        n == 'jefe cuadrilla' ||
+        n == 'jefe' ||
+        n == 'jefe de cuadrilla' ||
+        n == 'supervisor' ||
+        n.contains('cuadrilla');
+  }
+
+  static bool esLiderProyecto(String rol) =>
+      rol.toLowerCase().trim() == 'lider_proyecto';
+
+  /// Quién puede recibir una plantilla asignada.
+  static bool puedeRecibirPlantilla(String rol) =>
+      esOperador(rol) || esLiderCuadrilla(rol);
+
+  static String etiquetaDesdeCognito(String? rolCognito) {
+    switch (rolCognito?.toLowerCase().trim()) {
+      case 'lider_cuadrilla':
+      case 'jefe_cuadrilla':
+        return 'Jefe de cuadrilla';
+      case 'operador':
+        return 'Operador';
+      case 'lider_proyecto':
+        return 'Líder de proyecto';
+      default:
+        if (rolCognito != null && esLiderCuadrilla(rolCognito)) {
+          return 'Jefe de cuadrilla';
+        }
+        if (rolCognito != null && esOperador(rolCognito)) {
+          return 'Operador';
+        }
+        return rolCognito ?? 'Usuario';
+    }
+  }
+
+  /// Etiqueta UI para dropdowns de rol en creación de plan.
+  static String etiquetaParaDropdown(String rol) {
+    if (esLiderCuadrilla(rol)) return 'Jefe de cuadrilla';
+    if (esOperador(rol)) return 'Operador';
+    return rol.trim();
+  }
+
+  static bool _esSlugRol(String value) {
+    final n = value.toLowerCase().trim().replaceAll(' ', '_');
+    return n == 'lider_cuadrilla' ||
+        n == 'jefe_cuadrilla' ||
+        n == 'lider_proyecto' ||
+        n == 'operador';
+  }
+
+  /// Detecta nombres placeholder guardados como rol (ej. "jefe cuadrilla", "operador").
+  static bool esNombrePlaceholder(String nombre, {String? rolCognito}) {
+    final n = nombre.toLowerCase().trim();
+    if (n.isEmpty) return true;
+    if (_esSlugRol(n)) return true;
+    if (n == 'jefe cuadrilla' || n == 'lider cuadrilla') return true;
+    if (n == 'operador') return true;
+    if (esLiderCuadrilla(n) || esOperador(n)) return true;
+    if (rolCognito != null &&
+        n == rolCognito.toLowerCase().trim().replaceAll('_', ' ')) {
+      return true;
+    }
+    return false;
+  }
+
+  /// Evita usar el slug de Cognito o placeholders de rol como nombre visible.
+  static String normalizarNombre(String nombre, {String? rolCognito}) {
+    final limpio = nombre.trim();
+    if (limpio.isEmpty || esNombrePlaceholder(limpio, rolCognito: rolCognito)) {
+      if (rolCognito != null && rolCognito.isNotEmpty) {
+        return etiquetaDesdeCognito(rolCognito);
+      }
+      if (esLiderCuadrilla(limpio)) return 'Jefe de cuadrilla';
+      if (esOperador(limpio)) return 'Operador';
+      return 'Usuario de campo';
+    }
+    return limpio;
+  }
+}
