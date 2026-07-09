@@ -12,10 +12,12 @@
       "AmplifyAppId": "d1y7zagn36dd1u"
     },
     "categories": {
-      "auth": {
-        "tsbeoraculoapi7e5484f0": {}
-      },
       "function": {
+        "crearUsuarioCampo": {
+          "sesEmail": "notificaciones@terrasacha.com",
+          "deploymentBucketName": "amplify-tsbeoraculoapi-dev-755cb-deployment",
+          "s3Key": "amplify-builds/crearUsuarioCampo-386b2f4b784e3163336b-build.zip"
+        },
         "audioToFeatures": {
           "deploymentBucketName": "amplify-tsbeoraculoapi-dev-755cb-deployment",
           "s3Key": "amplify-builds/audioToFeatures-67394e734b476f4e5844-build.zip"
@@ -24,6 +26,9 @@
           "deploymentBucketName": "amplify-tsbeoraculoapi-dev-755cb-deployment",
           "s3Key": "amplify-builds/kobotoolboxProxy-56424549424a56683274-build.zip"
         }
+      },
+      "auth": {
+        "tsbeoraculoapi7e5484f0": {}
       },
       "storage": {
         "s3744e127b": {}

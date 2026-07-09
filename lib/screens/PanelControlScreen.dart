@@ -5,9 +5,16 @@ import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:capturador_datos_offline/Screens/ProyectosMenuScreen.dart';
 import 'package:capturador_datos_offline/screens/CreacionPlanScreen.dart';
+import 'package:capturador_datos_offline/screens/DetalleSalidaScreen.dart';
 import 'package:capturador_datos_offline/main.dart';
 
 import '../models/Project.dart';
+import '../models/plan_campo_borrador.dart';
+import '../models/usuario_campo.dart';
+import '../utils/servicio_salida.dart';
+import '../utils/servicioAutenticacion.dart';
+import 'AjustesRetencionScreen.dart';
+import 'GestionListasChequeoScreen.dart';
 import 'GestionUsuariosScreen.dart';
 import 'TareasScreen.dart';
 
@@ -25,44 +32,94 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
 
   int _bottomIndex = 0;
   bool _sincronizando = true;
-  int _proyectosActivos = 0;  // Se carga dinámicamente
+  int _proyectosActivos = 0;
   int _tareasEnCurso = 0;
   String _ultimaSincronizacion = '--:--';
+  List<SalidaCampo> _planesRecientes = [];
   StreamSubscription? _syncSubscription;
 
   @override
   void initState() {
     super.initState();
     _esperarSincronizacion();
-    _cargarProyectosCount();  // Carga el número real de proyectos
+    _cargarResumen();
   }
 
-  /// Query directa con Amplify API para obtener el count de proyectos activos
-  /// Sin esperar la sincronización completa de DataStore
-  Future<void> _cargarProyectosCount() async {
+  Future<void> _cargarResumen() async {
+    if (hasRole('operador')) {
+      await _cargarPlanesRecientes();
+      return;
+    }
+    await Future.wait([
+      _cargarProyectosActivos(),
+      _cargarPlanesRecientes(),
+    ]);
+  }
+
+  Future<void> _cargarProyectosActivos() async {
     try {
       final request = ModelQueries.list(Project.classType);
       final response = await Amplify.API.query(request: request).response;
 
-      // Verificar errores
       if (response.errors.isNotEmpty) {
         debugPrint('❌ Error cargando proyectos: ${response.errors}');
         return;
       }
 
-      final items = response.data?.items;
-      if (items != null) {
-        // Filtrar solo los activos (status == 'activo')
-        final activos = items.where((p) => p?.status == 'activo').length;
-        if (mounted) {
-          setState(() {
-            _proyectosActivos = activos;
-            _ultimaSincronizacion = DateTime.now().toString().substring(11, 16);
-          });
-        }
-      }
+      final items = response.data?.items.whereType<Project>().toList() ?? [];
+      final activos = items.where((p) => p.status == 'activo').length;
+
+      if (!mounted) return;
+      setState(() {
+        _proyectosActivos = activos;
+        _ultimaSincronizacion = DateTime.now().toString().substring(11, 16);
+      });
     } catch (e) {
       debugPrint('❌ Error en query de proyectos: $e');
+    }
+  }
+
+  Future<void> _cargarPlanesRecientes() async {
+    try {
+      if (hasRole('operador')) {
+        final usuario = await servicioAutenticacion.getUsuarioActual();
+        if (usuario != null) {
+          final tareas = await ServicioSalida.listarTareasParaUsuario(usuario);
+          final activas = tareas
+              .where(
+                (t) =>
+                    t.estado == EstadoTareaSalida.pendiente ||
+                    t.estado == EstadoTareaSalida.enCurso,
+              )
+              .length;
+
+          if (!mounted) return;
+          setState(() {
+            _planesRecientes = [];
+            _tareasEnCurso = activas;
+          });
+        }
+        return;
+      }
+
+      final planes = await ServicioSalida.listar();
+      planes.sort((a, b) => b.actualizadoEn.compareTo(a.actualizadoEn));
+
+      final enCurso = planes
+          .where(
+            (p) =>
+                p.estado == EstadoSalida.enCurso ||
+                p.estado == EstadoSalida.programada,
+          )
+          .length;
+
+      if (!mounted) return;
+      setState(() {
+        _planesRecientes = planes.take(3).toList();
+        _tareasEnCurso = enCurso;
+      });
+    } catch (e) {
+      debugPrint('❌ Error cargando planes: $e');
     }
   }
 
@@ -106,26 +163,41 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
     }
   }
 
-  final List<Map<String, dynamic>> _proyectosRecientes = [
-    {
-      'nombre': 'Plan de Reforestación Zona Norte',
-      'estado': 'Activo',
-      'tiempo': 'Hace 2 horas',
-      'colorEstado': Color(0xFF4A5C24),
-    },
-    {
-      'nombre': 'Levantamiento de parcelas',
-      'estado': 'En progreso',
-      'tiempo': 'Ayer',
-      'colorEstado': Color(0xFFDD6B20),
-    },
-    {
-      'nombre': 'Monitoreo de Suelos - Finca 3',
-      'estado': 'Finalizado',
-      'tiempo': '22/08/2023',
-      'colorEstado': Color(0xFF718096),
-    },
-  ];
+  Color _colorEstadoPlan(EstadoSalida estado) {
+    switch (estado) {
+      case EstadoSalida.enCurso:
+      case EstadoSalida.programada:
+        return const Color(0xFFDD6B20);
+      case EstadoSalida.completada:
+      case EstadoSalida.cancelada:
+      case EstadoSalida.caducada:
+        return const Color(0xFF718096);
+      case EstadoSalida.borrador:
+      case EstadoSalida.incompleta:
+        return Colors.grey;
+    }
+  }
+
+  String _tiempoRelativoPlan(SalidaCampo plan) {
+    final fecha = plan.actualizadoEn;
+    final diff = DateTime.now().difference(fecha);
+    if (diff.inMinutes < 60) {
+      return 'Hace ${diff.inMinutes} min';
+    }
+    if (diff.inHours < 24) {
+      return 'Hace ${diff.inHours} horas';
+    }
+    if (diff.inDays == 1) {
+      return 'Ayer';
+    }
+    if (diff.inDays < 7) {
+      return 'Hace ${diff.inDays} días';
+    }
+
+    final dia = fecha.day.toString().padLeft(2, '0');
+    final mes = fecha.month.toString().padLeft(2, '0');
+    return '$dia/$mes/${fecha.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -185,17 +257,27 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
           ),
         ),
         leadingWidth: 120,
-        title: const Text(
-          'Panel de Control',
-          style: TextStyle(
+        title: Text(
+          hasRole('operador') ? 'Inicio' : 'Panel de Control',
+          style: const TextStyle(
             color: Colors.black87,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
         ),
         actions: [
+          IconButton(
+            icon: Icon(Icons.settings_outlined, color: primaryColor),
+            tooltip: 'Caducidad de datos',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AjustesRetencionScreen(),
+              ),
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.only(right: 16),
+            padding: const EdgeInsets.only(right: 4),
             child: CircleAvatar(
               backgroundColor: primaryColor.withOpacity(0.1),
               radius: 18,
@@ -223,92 +305,196 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Resumen del sistema ──────────────────────────────────────
-            const Text(
-              'Resumen del sistema',
-              style: TextStyle(
+            Text(
+              hasRole('operador') ? 'Resumen' : 'Resumen del sistema',
+              style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.black87,
               ),
             ),
             const SizedBox(height: 14),
-            Row(
-              children: [
-                // Proyectos activos
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const ProyectosMenuScreen()),
+            if (hasRole('operador'))
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const TareasScreen(),
+                        ),
+                      ),
+                      child: _buildResumenCard(
+                        icono: Icons.assignment_turned_in_outlined,
+                        titulo: 'Mis tareas',
+                        valor: '$_tareasEnCurso',
+                        puntoColor: const Color(0xFFDD6B20),
+                      ),
                     ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
                     child: _buildResumenCard(
-                      icono: Icons.folder_outlined,
-                      titulo: 'Proyectos activos',
-                      valor: '$_proyectosActivos',
-                      puntoColor: primaryColor,
+                      icono: Icons.sync,
+                      titulo: 'Sincronización',
+                      subtitulo: 'Completa - $_ultimaSincronizacion',
+                      esSincronizacion: true,
+                    ),
+                  ),
+                ],
+              )
+            else
+              Row(
+                children: [
+                  // Proyectos activos
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const ProyectosMenuScreen()),
+                      ),
+                      child: _buildResumenCard(
+                        icono: Icons.folder_outlined,
+                        titulo: 'Proyectos activos',
+                        valor: '$_proyectosActivos',
+                        puntoColor: primaryColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Tareas en curso
+                  Expanded(
+                    child: _buildResumenCard(
+                      icono: Icons.assignment_turned_in_outlined,
+                      titulo: 'Tareas en curso',
+                      valor: '$_tareasEnCurso',
+                      puntoColor: const Color(0xFFDD6B20),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // Sincronización
+                  Expanded(
+                    child: _buildResumenCard(
+                      icono: Icons.sync,
+                      titulo: 'Sincronización',
+                      subtitulo: 'Completa - $_ultimaSincronizacion',
+                      esSincronizacion: true,
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 24),
+
+            if (!hasRole('operador')) ...[
+              // ── Acciones rápidas ─────────────────────────────────────────
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: Text(
+                    'Acciones rápidas',
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                // Tareas en curso
-                Expanded(
-                  child: _buildResumenCard(
-                    icono: Icons.assignment_turned_in_outlined,
-                    titulo: 'Tareas en curso',
-                    valor: '$_tareasEnCurso',
-                    puntoColor: const Color(0xFFDD6B20),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                // Sincronización
-                Expanded(
-                  child: _buildResumenCard(
-                    icono: Icons.sync,
-                    titulo: 'Sincronización',
-                    subtitulo: 'Completa - $_ultimaSincronizacion',
-                    esSincronizacion: true,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // ── Acciones rápidas ─────────────────────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(10),
               ),
-              child: Center(
-                child: Text(
-                  'Acciones rápidas',
-                  style: TextStyle(
+              const SizedBox(height: 12),
+              _buildQuickActions(),
+              const SizedBox(height: 24),
+
+              // ── Planes recientes ─────────────────────────────────────────
+              const Text(
+                'Planes recientes',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (_planesRecientes.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Text(
+                    'No hay planes creados aún',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                  ),
+                )
+              else
+                ..._planesRecientes.map(_buildPlanRecienteCard),
+            ] else ...[
+              const Text(
+                'Acceso rápido',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 14),
+              GestureDetector(
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const TareasScreen()),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
                     color: primaryColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.assignment_outlined,
+                          color: Colors.white, size: 32),
+                      SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Ver mis tareas',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Registros y plantillas asignadas',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: Colors.white),
+                    ],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            // Acciones rápidas según rol
-            _buildQuickActions(),
-            const SizedBox(height: 24),
-
-            // ── Proyectos recientes ──────────────────────────────────────
-            const Text(
-              'Proyectos recientes',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-            const SizedBox(height: 14),
-            ..._proyectosRecientes.map((p) => _buildProyectoRecienteCard(p)),
+            ],
             const SizedBox(height: 80),
           ],
         ),
@@ -386,10 +572,15 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
     if (hasAnyRole(['lider_proyecto', 'lider_cuadrilla'])) {
       acciones.add(Expanded(
         child: GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreacionPlanScreen()),
-          ),
+          onTap: () async {
+            final actualizado = await Navigator.push<bool>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const CreacionPlanScreen(),
+              ),
+            );
+            if (actualizado == true) _cargarPlanesRecientes();
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 20),
             decoration: BoxDecoration(
@@ -438,11 +629,12 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
         child: _buildAccionCard(
           icono: Icons.checklist_outlined,
           label: 'Configurar\nchecklist',
-          onTap: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Configurar checklist')),
-            );
-          },
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const GestionListasChequeoScreen(),
+            ),
+          ),
         ),
       ));
     }
@@ -545,12 +737,20 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
     );
   }
 
-  Widget _buildProyectoRecienteCard(Map<String, dynamic> proyecto) {
+  Widget _buildPlanRecienteCard(SalidaCampo plan) {
+    final colorEstado = _colorEstadoPlan(plan.estado);
+    final tiempo = _tiempoRelativoPlan(plan);
+
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => const ProyectosMenuScreen()),
-      ),
+      onTap: () async {
+        final actualizado = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DetalleSalidaScreen(salidaId: plan.id),
+          ),
+        );
+        if (actualizado == true) _cargarPlanesRecientes();
+      },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -567,13 +767,22 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    proyecto['nombre'],
+                    plan.nombre,
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: Colors.black87,
                     ),
                   ),
+                  if (plan.ubicacionRuta != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      plan.ubicacionRuta!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -583,15 +792,15 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
               children: [
                 Container(
                   padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (proyecto['colorEstado'] as Color).withOpacity(0.12),
+                    color: colorEstado.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
-                    proyecto['estado'],
+                    plan.estado.etiqueta,
                     style: TextStyle(
-                      color: proyecto['colorEstado'] as Color,
+                      color: colorEstado,
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -599,7 +808,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  proyecto['tiempo'],
+                  tiempo,
                   style: TextStyle(
                     color: Colors.grey[400],
                     fontSize: 11,

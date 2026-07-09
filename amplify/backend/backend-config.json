@@ -49,6 +49,29 @@
       "providerPlugin": "awscloudformation",
       "service": "Lambda"
     },
+    "crearUsuarioCampo": {
+      "build": true,
+      "dependsOn": [
+        {
+          "attributes": [
+            "GraphQLAPIEndpointOutput",
+            "GraphQLAPIKeyOutput"
+          ],
+          "category": "api",
+          "resourceName": "tsbeoraculoapi"
+        },
+        {
+          "attributes": [
+            "UserPoolId",
+            "AppClientID"
+          ],
+          "category": "auth",
+          "resourceName": "tsbeoraculoapi7e5484f0"
+        }
+      ],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
     "kobotoolboxProxy": {
       "build": true,
       "providerPlugin": "awscloudformation",
@@ -69,6 +92,30 @@
         {
           "category": "function",
           "resourceName": "audioToFeatures"
+        }
+      ]
+    },
+    "AMPLIFY_function_crearUsuarioCampo_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "crearUsuarioCampo"
+        }
+      ]
+    },
+    "AMPLIFY_function_crearUsuarioCampo_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "crearUsuarioCampo"
+        }
+      ]
+    },
+    "AMPLIFY_function_crearUsuarioCampo_sesEmail": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "crearUsuarioCampo"
         }
       ]
     },
