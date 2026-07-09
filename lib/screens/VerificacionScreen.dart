@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/servicioAutenticacion.dart';
-import '../main.dart';
+import '../utils/estado_verificacion.dart';
 
 class VerificacionScreen extends StatefulWidget {
   const VerificacionScreen({super.key});
@@ -23,18 +23,21 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
 
   final Color primaryColor = const Color(0xFF4A5C24);
   final Color backgroundColor = const Color(0xFFF7F8F6);
+  bool _emailCargado = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (_emailCargado) return;
+    _emailCargado = true;
+    _cargarEmail();
+  }
+
+  Future<void> _cargarEmail() async {
     final args = ModalRoute.of(context)?.settings.arguments as String?;
-    if (args != null) {
-      _email = args;
-    } else {
-      pendingVerificationEmail().then((email) {
-        if (mounted) setState(() => _email = email);
-      });
-    }
+    final pending = await pendingVerificationEmail();
+    if (!mounted) return;
+    setState(() => _email = args ?? pending);
   }
 
   @override
@@ -171,7 +174,7 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: primaryColor.withOpacity(0.1),
+                    color: primaryColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Icon(Icons.mark_email_read_outlined,

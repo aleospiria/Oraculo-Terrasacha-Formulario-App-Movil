@@ -9,19 +9,21 @@ import 'package:amplify_api/amplify_api.dart';
 import 'package:amplify_datastore/amplify_datastore.dart';
 import 'models/ModelProvider.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
-import 'Screens/CapturaDatosScreen.dart';
-import 'Screens/ParcelasMenuScreen.dart';
-import 'Screens/ProyectosMenuScreen.dart';
-import 'Screens/TreesMenuScreen.dart';
-import 'Screens/SincronizacionScreen.dart';
-import 'Screens/RevisionScreen.dart';
+import 'package:capturador_datos_offline/screens/CapturaDatosScreen.dart';
+import 'package:capturador_datos_offline/screens/ParcelasMenuScreen.dart';
+import 'package:capturador_datos_offline/screens/ProyectosMenuScreen.dart';
+import 'package:capturador_datos_offline/screens/TreesMenuScreen.dart';
+import 'package:capturador_datos_offline/screens/SincronizacionScreen.dart';
+import 'package:capturador_datos_offline/screens/RevisionScreen.dart';
 import 'theme.dart';
 import 'amplifyconfiguration.dart';
-import 'Screens/RegistroIncidenciaScreen.dart';
-import 'Screens/LoginScreen.dart';
-import 'Screens/RegisterScreen.dart';
-import 'Screens/VerificacionScreen.dart';
+import 'package:capturador_datos_offline/screens/RegistroIncidenciaScreen.dart';
+import 'package:capturador_datos_offline/screens/LoginScreen.dart';
+import 'package:capturador_datos_offline/screens/RegisterScreen.dart';
+import 'package:capturador_datos_offline/screens/VerificacionScreen.dart';
 import 'utils/servicioAutenticacion.dart';
+import 'utils/servicio_retencion_datos.dart';
+import 'utils/estado_verificacion.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // StreamController para notificar cuando la sincronización esté lista
@@ -33,52 +35,6 @@ bool get isSyncReady => _isSyncReady;
 // Verificar si ya se sincronizó al menos una vez (datos en local)
 bool _hasLocalData = false;
 bool get hasLocalData => _hasLocalData;
-
-// ── Verificación de email pendiente (timeout 5 min) ──
-String? _pendingVerificationEmail;
-const Duration _pendingVerificationTimeout = Duration(minutes: 1); // TODO: cambiar a 5 min tras pruebas
-
-/// Guarda un email pendiente de verificación con su timestamp
-void setPendingVerification(String email) {
-  _pendingVerificationEmail = email;
-  _prefs?.setString('pending_email', email);
-  _prefs?.setString('pending_timestamp', DateTime.now().toIso8601String());
-}
-
-/// Limpia solo el timeout. El email se conserva como prueba de que
-/// este dispositivo registró al usuario.
-void clearPendingVerification() {
-  _pendingVerificationEmail = null;
-  _prefs?.remove('pending_timestamp');
-}
-
-/// Limpia todo (verificación exitosa o login normal).
-void clearAllVerificationData() {
-  _pendingVerificationEmail = null;
-  _prefs?.remove('pending_email');
-  _prefs?.remove('pending_timestamp');
-}
-
-/// Lee el email pendiente: primero de memoria, luego de SharedPreferences.
-/// Si el timeout expiró, limpia el timestamp y cierra la sesión de Cognito.
-Future<String?> pendingVerificationEmail() async {
-  if (_pendingVerificationEmail != null) return _pendingVerificationEmail;
-  final savedEmail = _prefs?.getString('pending_email');
-  if (savedEmail == null) return null;
-  final savedTs = _prefs?.getString('pending_timestamp');
-  if (savedTs == null) return null;
-  final timestamp = DateTime.tryParse(savedTs);
-  if (timestamp == null) return null;
-  if (DateTime.now().difference(timestamp) > _pendingVerificationTimeout) {
-    clearPendingVerification();
-    try {
-      await Amplify.Auth.signOut();
-    } catch (_) {}
-    return null;
-  }
-  _pendingVerificationEmail = savedEmail;
-  return savedEmail;
-}
 
 SharedPreferences? _prefs;
 
@@ -103,6 +59,7 @@ void setCurrentRole(String? role) {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   _prefs = await SharedPreferences.getInstance();
+  initEstadoVerificacion(_prefs!);
   await _configureAmplify();
   runApp(const CapturadorApp());
 }
@@ -117,6 +74,9 @@ Future<void> _configureAmplify() async {
     await Amplify.addPlugin(AmplifyAuthCognito());
     await Amplify.configure(amplifyconfig);
     await Amplify.DataStore.start();
+
+    // Purgar datos de campo expirados del dispositivo
+    await ServicioRetencionDatos.ejecutarAlArrancar();
 
     // Verificar si ya hay datos en local (offline-first)
     await _verificarDatosLocales();

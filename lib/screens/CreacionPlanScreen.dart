@@ -1,8 +1,33 @@
 // lib/Screens/CreacionPlanScreen.dart
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+
+import '../main.dart';
+import '../models/lista_chequeo.dart';
+import '../models/plan_campo_borrador.dart';
+import '../models/usuario_campo.dart';
+import '../utils/geojson_topology_helpers.dart';
+import '../utils/servicio_salida.dart';
+import '../utils/servicio_lista_chequeo.dart';
+import '../utils/servicio_plantillas.dart';
+import '../config/crear_usuario_lambda_config.dart';
+import '../utils/flujo_asignacion_plantilla.dart';
+import '../utils/roles_campo.dart';
+import '../utils/servicio_usuarios_campo.dart';
+import '../widgets/asignacion_plantilla_sheet.dart';
+import '../widgets/mapa_subarea_widget.dart';
+import '../widgets/selector_topologia_sheet.dart';
+import 'EditorListaChequeoScreen.dart';
 
 class CreacionPlanScreen extends StatefulWidget {
-  const CreacionPlanScreen({super.key});
+  final SalidaCampo? salidaInicial;
+  final int pasoInicial;
+
+  const CreacionPlanScreen({
+    super.key,
+    this.salidaInicial,
+    this.pasoInicial = 1,
+  });
 
   @override
   State<CreacionPlanScreen> createState() => _CreacionPlanScreenState();
@@ -19,63 +44,156 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
 
   // ── Datos del plan que se van acumulando paso a paso ──────────────────────
   final TextEditingController _nombrePlanCtrl = TextEditingController();
-  String? _ubicacionSeleccionada;
-  final List<_UsuarioPlan> _usuariosSeleccionados = [];
-  String? _checklistSeleccionado;
-  String? _zonaSeleccionada;
+  String? _proyectoId;
+  String? _proyectoNombre;
+  String? _topologiaId;
+  String? _ubicacionRuta;
+  String? _poligonoPadreGeoJson;
+  List<LatLng> _poligonoPadreLatLng = [];
+  final List<SubAreaPlanDia> _subAreasPorDia = [];
+  DateTime? _fechaInicioPlan;
+  DateTime? _fechaFinPlan;
+  DateTime? _fechaSubareaEditando;
+  List<LatLng> _puntosSubareaActual = [];
 
-  // Datos de prueba
-  final List<String> _ubicaciones = [
-    'Zona Norte - Parcela A',
-    'Zona Sur - Lote B',
-    'Lote Experimental 3',
-    'Finca Principal',
-  ];
+  final List<_UsuarioPlan> _usuariosSeleccionados = [];
+  ListaChequeo? _listaChequeoSeleccionada;
+  List<ListaChequeo> _listasChequeoDisponibles = [];
+  bool _cargandoListasChequeo = false;
+
+  List<PlantillaConFeatures> _plantillasDisponibles = [];
+  bool _cargandoPlantillas = false;
+  String? _errorPlantillas;
+  final List<AsignacionPlantillaPlan> _asignacionesPlantillas = [];
 
   final List<_UsuarioPlan> _usuariosDisponibles = [
-    _UsuarioPlan(nombre: 'Juan Pérez', rol: 'Operador',
-        mediciones: ['Humedad', 'Calidad de Agua', 'Reforestación']),
-    _UsuarioPlan(nombre: 'María Rodríguez', rol: 'Jefe',
-        mediciones: ['Humedad', 'Calidad de Agua', 'Reforestación']),
-    _UsuarioPlan(nombre: 'Carlos Gómez', rol: 'Operador',
-        mediciones: ['Humedad', 'Calidad de Agua', 'Reforestación']),
-    _UsuarioPlan(nombre: 'Ana Silva', rol: 'Operador',
-        mediciones: ['Humedad', 'Calidad de Agua', 'Reforestación']),
-    _UsuarioPlan(nombre: 'Pedro Ramos', rol: 'Operador',
-        mediciones: ['Humedad', 'Calidad de Agua', 'Reforestación']),
+    _UsuarioPlan(nombre: 'Juan Pérez', rol: 'Operador'),
+    _UsuarioPlan(nombre: 'María Rodríguez', rol: 'Jefe de cuadrilla'),
+    _UsuarioPlan(nombre: 'Carlos Gómez', rol: 'Operador'),
+    _UsuarioPlan(nombre: 'Ana Silva', rol: 'Operador'),
+    _UsuarioPlan(nombre: 'Pedro Ramos', rol: 'Operador'),
   ];
 
-  final List<String> _checklists = [
-    'Mantenimiento de Cultivo v4',
-    'Protocolo de Campo v2',
-    'Inspección Fitosanitaria v1',
-  ];
-
-  final List<Map<String, String>> _requerimientos = [
-    {
-      'titulo': 'Equipo de Protección (EPP)',
-      'subtitulo': 'Uso obligatorio de casco y botas de seguridad.',
-      'icono': 'casco',
-    },
-    {
-      'titulo': 'Calibración de Sensores',
-      'subtitulo': 'Ajuste de precisión en sensores de suelo y aire.',
-      'icono': 'sensor',
-    },
-    {
-      'titulo': 'Registro de Coordenadas GPS',
-      'subtitulo': 'Captura de puntos clave en la parcela 1.',
-      'icono': 'gps',
-    },
-  ];
-
-  final List<String> _zonas = [
-    'Zona Norte - Parcela A',
-    'Zona Sur - Lote B',
-    'Lote Experimental 3',
-  ];
+  bool _usuariosApiCargados = false;
 
   String _busquedaUsuario = '';
+  String? _salidaIdEnEdicion;
+
+  @override
+  void initState() {
+    super.initState();
+    _pasoActual = widget.pasoInicial.clamp(1, 6);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!hasRole('lider_proyecto')) {
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Solo el líder de proyecto puede crear planes'),
+          ),
+        );
+        return;
+      }
+      if (widget.salidaInicial != null) {
+        await _hidratarDesdeSalida(widget.salidaInicial!);
+      } else {
+        await _cargarUsuariosEquipoSiNecesario();
+      }
+    });
+  }
+
+  Future<void> _cargarUsuariosEquipoSiNecesario() async {
+    if (!CrearUsuarioLambdaConfig.isConfigured) {
+      return;
+    }
+    if (_usuariosApiCargados) {
+      return;
+    }
+
+    final resultado = await ServicioUsuariosCampo.listarUsuarios();
+    if (!mounted) return;
+
+    if (resultado['exito'] == true) {
+      final lista = <_UsuarioPlan>[];
+      for (final item in resultado['usuarios'] as List<dynamic>? ?? []) {
+        if (item is! Map<String, dynamic>) continue;
+        final usuario = UsuarioCampo.fromApi(item);
+        if (!RolesCampo.puedeRecibirPlantilla(usuario.rolCognito)) continue;
+        lista.add(
+          _UsuarioPlan(
+            userId: usuario.id,
+            nombre: usuario.nombre,
+            rol: usuario.rolDisplay,
+          ),
+        );
+      }
+      if (lista.isNotEmpty) {
+        setState(() {
+          _usuariosDisponibles
+            ..clear()
+            ..addAll(lista);
+        });
+      }
+    }
+
+    _usuariosApiCargados = true;
+  }
+
+  Future<void> _hidratarDesdeSalida(SalidaCampo salida) async {
+    _salidaIdEnEdicion = salida.id;
+    _nombrePlanCtrl.text = salida.nombre;
+    _fechaInicioPlan = salida.fechaInicio;
+    _fechaFinPlan = salida.fechaFin;
+    _proyectoId = salida.proyectoId;
+    _proyectoNombre = salida.proyectoNombre;
+    _topologiaId = salida.topologiaId;
+    _ubicacionRuta = salida.ubicacionRuta;
+    _poligonoPadreGeoJson = salida.poligonoPadreGeoJson;
+    _poligonoPadreLatLng = parseGeoJsonPolygonRing(salida.poligonoPadreGeoJson);
+    _subAreasPorDia
+      ..clear()
+      ..addAll(salida.subAreasPorDia);
+    _usuariosSeleccionados
+      ..clear()
+      ..addAll(
+        salida.equipo.map(_usuarioPlanDesdeMiembro),
+      );
+    _asignacionesPlantillas
+      ..clear()
+      ..addAll(
+        salida.asignacionesPlantillas.map(_normalizarAsignacion),
+      );
+
+    await _cargarUsuariosEquipoSiNecesario();
+
+    if (salida.checklist != null) {
+      await _cargarListasChequeoSiNecesario();
+      final listaId = salida.checklist!.listaId;
+      ListaChequeo? encontrada;
+      for (final l in _listasChequeoDisponibles) {
+        if (l.id == listaId) {
+          encontrada = l;
+          break;
+        }
+      }
+      _listaChequeoSeleccionada = encontrada ??
+          ListaChequeo(
+            id: salida.checklist!.listaId,
+            nombre: salida.checklist!.nombre,
+            descripcion: '',
+            origen: OrigenListaChequeo.administrador,
+            creadoEn: DateTime.now(),
+            actualizadoEn: DateTime.now(),
+            items: salida.checklist!.items,
+          );
+    }
+
+    if (_pasoActual >= 4) {
+      await _cargarPlantillasSiNecesario();
+    }
+
+    if (mounted) setState(() {});
+  }
 
   @override
   void dispose() {
@@ -86,25 +204,570 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
   // ── Navegación entre pasos ────────────────────────────────────────────────
 
   void _continuar() {
-    if (_pasoActual == 1 && _nombrePlanCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Por favor ingresa el nombre del plan'),
-          backgroundColor: Colors.red[400],
-          behavior: SnackBarBehavior.floating,
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        ),
+    if (_pasoActual == 1) {
+      if (_nombrePlanCtrl.text.trim().isEmpty) {
+        _mostrarError('Por favor ingresa el nombre del plan');
+        return;
+      }
+      if (_fechaInicioPlan == null || _fechaFinPlan == null) {
+        _mostrarError('Selecciona la fecha de inicio y fin del plan');
+        return;
+      }
+      if (_fechaFinPlan!.isBefore(_fechaInicioPlan!)) {
+        _mostrarError('La fecha de fin debe ser posterior o igual a la de inicio');
+        return;
+      }
+      if (_topologiaId == null || _ubicacionRuta == null) {
+        _mostrarError('Selecciona una ubicación en la topología');
+        return;
+      }
+      if (_poligonoPadreLatLng.length >= 3 && _subAreasPorDia.isEmpty) {
+        _mostrarError(
+          'Define al menos una subárea por día dentro del polígono padre',
+        );
+        return;
+      }
+      final fueraDeRango = _subAreasPorDia.where(
+        (s) => !_fechaEstaEnRangoPlan(s.fecha),
       );
-      return;
+      if (fueraDeRango.isNotEmpty) {
+        _mostrarError(
+          'Las subáreas deben estar entre ${_formatFecha(_fechaInicioPlan!)} y ${_formatFecha(_fechaFinPlan!)}',
+        );
+        return;
+      }
+    }
+    if (_pasoActual == 2) {
+      if (_usuariosSeleccionados.isEmpty) {
+        _mostrarError('Selecciona al menos un miembro del equipo');
+        return;
+      }
+      if (_responsablesPlantilla.isEmpty) {
+        _mostrarError(
+          'Inclúyete como jefe de cuadrilla o agrega operadores al equipo',
+        );
+        return;
+      }
+    }
+    if (_pasoActual == 3) {
+      if (_listaChequeoSeleccionada == null) {
+        _mostrarError('Selecciona o crea una lista de chequeo');
+        return;
+      }
+    }
+    if (_pasoActual == 4) {
+      if (_asignacionesPlantillas.isEmpty) {
+        _mostrarError('Agrega al menos una asignación de plantilla');
+        return;
+      }
     }
     setState(() {
       if (_pasoActual < _totalPasos) {
         _pasoActual++;
+        if (_pasoActual == 3) {
+          _cargarListasChequeoSiNecesario();
+        }
+        if (_pasoActual == 2) {
+          _cargarUsuariosEquipoSiNecesario();
+        }
+        if (_pasoActual == 4) {
+          _cargarPlantillasSiNecesario();
+        }
       } else {
-        _pasoActual = 5; // resumen final
+        _pasoActual = 5;
       }
     });
+  }
+
+  List<_UsuarioPlan> get _operadoresSeleccionados => _usuariosSeleccionados
+      .where((u) => RolesCampo.esOperador(u.rol))
+      .toList();
+
+  /// Personas a las que se puede asignar una plantilla: operadores + jefe(s) de cuadrilla.
+  List<_UsuarioPlan> get _responsablesPlantilla {
+    final porClave = <String, _UsuarioPlan>{};
+    for (final u in _usuariosSeleccionados) {
+      if (!RolesCampo.esOperador(u.rol) &&
+          !RolesCampo.esLiderCuadrilla(u.rol)) {
+        continue;
+      }
+      final clave = u.userId.isNotEmpty ? u.userId : u.nombre.toLowerCase();
+      porClave[clave] = u;
+    }
+    return porClave.values.toList();
+  }
+
+  List<_UsuarioPlan> get _lideresCuadrilla {
+    final lideres = _usuariosSeleccionados
+        .where((u) => RolesCampo.esLiderCuadrilla(u.rol))
+        .toList();
+    if (lideres.isNotEmpty) return lideres;
+    return List<_UsuarioPlan>.from(_usuariosSeleccionados);
+  }
+
+
+  Future<void> _cargarListasChequeoSiNecesario() async {
+    if (_cargandoListasChequeo) return;
+
+    setState(() => _cargandoListasChequeo = true);
+
+    try {
+      final listas = await ServicioListaChequeo.cargarDisponibles();
+      if (!mounted) return;
+      setState(() {
+        _listasChequeoDisponibles = listas;
+        _cargandoListasChequeo = false;
+        if (_listaChequeoSeleccionada != null) {
+          final id = _listaChequeoSeleccionada!.id;
+          ListaChequeo? actualizada;
+          for (final l in listas) {
+            if (l.id == id) {
+              actualizada = l;
+              break;
+            }
+          }
+          _listaChequeoSeleccionada = actualizada;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _cargandoListasChequeo = false);
+      _mostrarError('No se pudieron cargar las listas: $e');
+    }
+  }
+
+  List<ListaChequeo> get _listasAdmin => _listasChequeoDisponibles
+      .where((l) => l.esDelAdministrador)
+      .toList();
+
+  List<ListaChequeo> get _listasPropias => _listasChequeoDisponibles
+      .where((l) => !l.esDelAdministrador)
+      .toList();
+
+  void _seleccionarListaChequeo(ListaChequeo lista) {
+    setState(() => _listaChequeoSeleccionada = lista);
+  }
+
+  Future<void> _abrirCrearListaChequeo() async {
+    final resultado = await Navigator.push<Object?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditorListaChequeoScreen(primaryColor: primaryColor),
+      ),
+    );
+
+    if (!mounted || resultado == null) return;
+
+    if (resultado is NuevaListaChequeoDatos) {
+      try {
+        final creada = await ServicioListaChequeo.crear(
+          nombre: resultado.nombre,
+          descripcion: resultado.descripcion,
+          items: resultado.items,
+        );
+        if (!mounted) return;
+        setState(() {
+          _listasChequeoDisponibles = [..._listasChequeoDisponibles, creada];
+          _listaChequeoSeleccionada = creada;
+        });
+      } catch (e) {
+        _mostrarError('No se pudo crear la lista: $e');
+      }
+    }
+  }
+
+  Future<void> _abrirEditarListaChequeo(ListaChequeo lista) async {
+    final resultado = await Navigator.push<ListaChequeo?>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EditorListaChequeoScreen(
+          primaryColor: primaryColor,
+          listaInicial: lista,
+        ),
+      ),
+    );
+
+    if (!mounted || resultado == null) return;
+
+    try {
+      final actualizada = await ServicioListaChequeo.actualizar(resultado);
+      if (!mounted) return;
+      setState(() {
+        final index =
+            _listasChequeoDisponibles.indexWhere((l) => l.id == actualizada.id);
+        if (index >= 0) {
+          _listasChequeoDisponibles[index] = actualizada;
+        }
+        if (_listaChequeoSeleccionada?.id == actualizada.id) {
+          _listaChequeoSeleccionada = actualizada;
+        }
+      });
+    } catch (e) {
+      _mostrarError('No se pudo actualizar: $e');
+    }
+  }
+
+  Future<void> _confirmarEliminarLista(ListaChequeo lista) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar lista'),
+        content: Text(
+          '¿Eliminar "${lista.nombre}"? Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true || !mounted) return;
+
+    try {
+      await ServicioListaChequeo.eliminar(lista.id);
+      if (!mounted) return;
+      setState(() {
+        _listasChequeoDisponibles
+            .removeWhere((l) => l.id == lista.id);
+        if (_listaChequeoSeleccionada?.id == lista.id) {
+          _listaChequeoSeleccionada = null;
+        }
+      });
+    } catch (e) {
+      _mostrarError('No se pudo eliminar: $e');
+    }
+  }
+
+  IconData _iconoItemChecklist(String icono) {
+    switch (icono) {
+      case 'casco':
+        return Icons.safety_check_outlined;
+      case 'sensor':
+        return Icons.build_outlined;
+      case 'gps':
+        return Icons.location_on_outlined;
+      default:
+        return Icons.check_circle_outline;
+    }
+  }
+
+  Future<void> _cargarPlantillasSiNecesario() async {
+    if (_cargandoPlantillas || _plantillasDisponibles.isNotEmpty) return;
+
+    setState(() {
+      _cargandoPlantillas = true;
+      _errorPlantillas = null;
+    });
+
+    try {
+      final plantillas = await ServicioPlantillas.cargarPlantillasConFeatures();
+      if (!mounted) return;
+      setState(() {
+        _plantillasDisponibles = plantillas;
+        _cargandoPlantillas = false;
+        if (plantillas.isEmpty) {
+          _errorPlantillas =
+              'No hay plantillas disponibles. Créalas en ModelAI (ej. PLANTILLA_MARCAR_ARBOL).';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _cargandoPlantillas = false;
+        _errorPlantillas = 'No se pudieron cargar las plantillas: $e';
+      });
+    }
+  }
+
+  Future<void> _abrirNuevaAsignacion({int? indiceEdicion}) async {
+    if (_responsablesPlantilla.isEmpty) {
+      _mostrarError(
+        'Agrega operadores al equipo o inclúyete como jefe de cuadrilla (paso 2)',
+      );
+      return;
+    }
+    if (_plantillasDisponibles.isEmpty) {
+      await _cargarPlantillasSiNecesario();
+      if (!mounted) return;
+      if (_plantillasDisponibles.isEmpty) {
+        _mostrarError(_errorPlantillas ?? 'Sin plantillas disponibles');
+        return;
+      }
+    }
+
+    final fechas = _subAreasPorDia.map((s) => s.fecha).toList();
+    final responsables = _responsablesPlantilla
+        .map(_responsableParaSheet)
+        .toList();
+
+    AsignacionPlantillaSheetDatos? iniciales;
+    if (indiceEdicion != null) {
+      final a = _normalizarAsignacion(_asignacionesPlantillas[indiceEdicion]);
+      iniciales = AsignacionPlantillaSheetDatos(
+        templateId: a.templateId,
+        templateNombre: a.templateNombre,
+        featureIds: List<String>.from(a.featureIds),
+        featureNombres: List<String>.from(a.featureNombres),
+        operadorNombre: a.operadorNombre,
+        operadorRol: a.operadorRol,
+        responsableUserId: a.responsableUserId,
+        fechaSubArea: a.fechaSubArea,
+      );
+    }
+
+    final resultado = await AsignacionPlantillaSheet.mostrar(
+      context,
+      primaryColor: primaryColor,
+      plantillas: _plantillasDisponibles,
+      responsables: responsables,
+      fechasSubArea: fechas,
+      datosIniciales: iniciales,
+    );
+
+    if (resultado == null || !mounted) return;
+
+    final asignacion = FlujoAsignacionPlantilla.asignacionDesdeSheet(
+      resultado,
+      id: indiceEdicion != null
+          ? _asignacionesPlantillas[indiceEdicion].id
+          : null,
+    );
+
+    setState(() {
+      if (indiceEdicion != null) {
+        _asignacionesPlantillas[indiceEdicion] = asignacion;
+      } else {
+        _asignacionesPlantillas.add(asignacion);
+      }
+    });
+  }
+
+  void _eliminarAsignacion(int index) {
+    setState(() => _asignacionesPlantillas.removeAt(index));
+  }
+
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.red[400],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Future<void> _abrirSelectorUbicacion() async {
+    final resultado = await SelectorTopologiaSheet.mostrar(
+      context,
+      primaryColor: primaryColor,
+    );
+    if (resultado == null || !mounted) return;
+
+    final padreLatLng =
+        parseGeoJsonPolygonRing(resultado.poligonoPadreGeoJson);
+
+    setState(() {
+      _proyectoId = resultado.proyecto.id;
+      _proyectoNombre = resultado.proyecto.name;
+      _topologiaId = resultado.topologia.id;
+      _ubicacionRuta = resultado.etiquetaRuta;
+      _poligonoPadreGeoJson = resultado.poligonoPadreGeoJson;
+      _poligonoPadreLatLng = padreLatLng;
+      _subAreasPorDia.clear();
+      _fechaSubareaEditando = null;
+      _puntosSubareaActual = [];
+    });
+
+    if (padreLatLng.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'La topología no tiene polígono. Puedes continuar sin subáreas o defínelo en la web.',
+          ),
+          backgroundColor: primaryColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _elegirFechaSubarea() async {
+    if (_fechaInicioPlan == null || _fechaFinPlan == null) {
+      _mostrarError('Define primero las fechas de inicio y fin del plan');
+      return;
+    }
+
+    final fecha = await showDatePicker(
+      context: context,
+      initialDate: _fechaSubareaEditando ?? _fechaInicioPlan!,
+      firstDate: _fechaInicioPlan!,
+      lastDate: _fechaFinPlan!,
+      helpText: 'Día de trabajo en campo',
+    );
+    if (fecha == null || !mounted) return;
+
+    final yaExiste = _subAreasPorDia.any(
+      (s) =>
+          s.fecha.year == fecha.year &&
+          s.fecha.month == fecha.month &&
+          s.fecha.day == fecha.day,
+    );
+    if (yaExiste) {
+      _mostrarError('Ya existe una subárea para esa fecha');
+      return;
+    }
+
+    setState(() {
+      _fechaSubareaEditando = fecha;
+      _puntosSubareaActual = [];
+    });
+  }
+
+  void _guardarSubareaDia() {
+    if (_fechaSubareaEditando == null) {
+      _mostrarError('Selecciona primero un día');
+      return;
+    }
+    if (_puntosSubareaActual.length < 3) {
+      _mostrarError('La subárea necesita al menos 3 puntos');
+      return;
+    }
+    if (_poligonoPadreLatLng.length >= 3 &&
+        !isPolygonContainedInParent(
+          _puntosSubareaActual,
+          _poligonoPadreLatLng,
+        )) {
+      _mostrarError('La subárea debe estar dentro del polígono padre');
+      return;
+    }
+
+    final geoJson = encodeGeoJsonPolygon(_puntosSubareaActual);
+    setState(() {
+      _subAreasPorDia.add(
+        SubAreaPlanDia(
+          fecha: _fechaSubareaEditando!,
+          subAreaGeoJson: geoJson,
+        ),
+      );
+      _subAreasPorDia.sort((a, b) => a.fecha.compareTo(b.fecha));
+      _fechaSubareaEditando = null;
+      _puntosSubareaActual = [];
+    });
+  }
+
+  void _eliminarSubarea(int index) {
+    setState(() => _subAreasPorDia.removeAt(index));
+  }
+
+  String _formatFecha(DateTime fecha) {
+    final d = fecha.day.toString().padLeft(2, '0');
+    final m = fecha.month.toString().padLeft(2, '0');
+    return '$d/$m/${fecha.year}';
+  }
+
+  DateTime _soloFecha(DateTime fecha) =>
+      DateTime(fecha.year, fecha.month, fecha.day);
+
+  bool _fechaEstaEnRangoPlan(DateTime fecha) {
+    if (_fechaInicioPlan == null || _fechaFinPlan == null) return true;
+    final f = _soloFecha(fecha);
+    return !f.isBefore(_fechaInicioPlan!) && !f.isAfter(_fechaFinPlan!);
+  }
+
+  Future<void> _elegirFechaPlan({required bool esInicio}) async {
+    final hoy = _soloFecha(DateTime.now());
+    final fechaActual = esInicio ? _fechaInicioPlan : _fechaFinPlan;
+
+    final fecha = await showDatePicker(
+      context: context,
+      initialDate: fechaActual ?? hoy,
+      firstDate: hoy.subtract(const Duration(days: 1)),
+      lastDate: hoy.add(const Duration(days: 365 * 5)),
+      helpText: esInicio ? 'Fecha de inicio del plan' : 'Fecha de fin del plan',
+    );
+    if (fecha == null || !mounted) return;
+
+    final normalizada = _soloFecha(fecha);
+
+    if (!esInicio &&
+        _fechaInicioPlan != null &&
+        normalizada.isBefore(_fechaInicioPlan!)) {
+      _mostrarError('La fecha de fin no puede ser anterior a la de inicio');
+      return;
+    }
+
+    setState(() {
+      if (esInicio) {
+        _fechaInicioPlan = normalizada;
+        if (_fechaFinPlan != null && _fechaFinPlan!.isBefore(normalizada)) {
+          _fechaFinPlan = normalizada;
+        }
+      } else {
+        _fechaFinPlan = normalizada;
+      }
+    });
+  }
+
+  Widget _buildSelectorFechaPlan({
+    required String etiqueta,
+    required DateTime? fecha,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            etiqueta,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.calendar_today_outlined,
+                        color: primaryColor, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        fecha != null ? _formatFecha(fecha) : 'Seleccionar',
+                        style: TextStyle(
+                          color: fecha != null
+                              ? Colors.black87
+                              : Colors.grey[400],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _retroceder() {
@@ -145,77 +808,282 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
   // ── Indicador de pasos (círculos) ─────────────────────────────────────────
 
   Widget _buildIndicadorPasos() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(_totalPasos, (i) {
-        final numero = i + 1;
-        final completado = numero < _pasoActual;
-        final activo = numero == _pasoActual;
+    const circleSize = 32.0;
+    final children = <Widget>[];
 
-        return Row(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: completado || activo ? primaryColor : accentColor,
-                border: Border.all(
-                  color: completado || activo ? primaryColor : accentColor,
-                  width: 2,
-                ),
-              ),
-              child: Center(
-                child: completado
-                    ? const Icon(Icons.check, color: Colors.white, size: 18)
-                    : Text(
-                  '$numero',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
+    for (var i = 0; i < _totalPasos; i++) {
+      final numero = i + 1;
+      final completado = numero < _pasoActual;
+      final activo = numero == _pasoActual;
+
+      children.add(
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: circleSize,
+          height: circleSize,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: completado || activo ? primaryColor : accentColor,
+            border: Border.all(
+              color: completado || activo ? primaryColor : accentColor,
+              width: 2,
             ),
-            if (numero < _totalPasos)
-              Container(
-                width: 40,
-                height: 2,
-                color: numero < _pasoActual ? primaryColor : accentColor,
-              ),
-          ],
+          ),
+          child: Center(
+            child: completado
+                ? const Icon(Icons.check, color: Colors.white, size: 16)
+                : Text(
+                    '$numero',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+          ),
+        ),
+      );
+
+      if (numero < _totalPasos) {
+        children.add(
+          Expanded(
+            child: Container(
+              height: 2,
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              color: numero < _pasoActual ? primaryColor : accentColor,
+            ),
+          ),
         );
-      }),
-    );
+      }
+    }
+
+    return Row(children: children);
   }
 
   // ── Paso 1: Info básica (ahora sin título repetido) ───────────────────────
 
   Widget _buildPaso1() {
+    final puedeDibujar = _poligonoPadreLatLng.length >= 3;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Nombre del plan',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+          const Text(
+            'Nombre del plan',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _nombrePlanCtrl,
             decoration: _inputDecoration('Ingresa el nombre del plan'),
           ),
           const SizedBox(height: 20),
-          const Text('Ubicación',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-          const SizedBox(height: 8),
-          _buildDropdown(
-            hint: 'Seleccionar ubicación',
-            valor: _ubicacionSeleccionada,
-            opciones: _ubicaciones,
-            onChanged: (v) => setState(() => _ubicacionSeleccionada = v),
+          const Text(
+            'Vigencia del plan',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _buildSelectorFechaPlan(
+                etiqueta: 'Fecha de inicio',
+                fecha: _fechaInicioPlan,
+                onTap: () => _elegirFechaPlan(esInicio: true),
+              ),
+              const SizedBox(width: 12),
+              _buildSelectorFechaPlan(
+                etiqueta: 'Fecha de fin',
+                fecha: _fechaFinPlan,
+                onTap: () => _elegirFechaPlan(esInicio: false),
+              ),
+            ],
+          ),
+          if (_fechaInicioPlan != null && _fechaFinPlan != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Duración: ${_fechaFinPlan!.difference(_fechaInicioPlan!).inDays + 1} día(s)',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+          const SizedBox(height: 20),
+          const Text(
+            'Ubicación (topología)',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _abrirSelectorUbicacion,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.account_tree_outlined, color: primaryColor),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        _ubicacionRuta ?? 'Seleccionar ubicación en topología',
+                        style: TextStyle(
+                          color: _ubicacionRuta != null
+                              ? Colors.black87
+                              : Colors.grey[400],
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.grey[400]),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          if (_proyectoNombre != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Proyecto: $_proyectoNombre',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+          if (puedeDibujar) ...[
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Subáreas por día',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: primaryColor,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _elegirFechaSubarea,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Agregar día'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Dibuja un polígono contenido en el área padre para cada fecha de trabajo.',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+            if (_fechaSubareaEditando != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Día: ${_formatFecha(_fechaSubareaEditando!)}',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              MapaSubareaWidget(
+                poligonoPadre: _poligonoPadreLatLng,
+                puntosSubarea: _puntosSubareaActual,
+                primaryColor: primaryColor,
+                onPuntosChanged: (pts) =>
+                    setState(() => _puntosSubareaActual = pts),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: _guardarSubareaDia,
+                  child: const Text('Guardar subárea del día'),
+                ),
+              ),
+            ],
+            if (_subAreasPorDia.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              ..._subAreasPorDia.asMap().entries.map((entry) {
+                final i = entry.key;
+                final sub = entry.value;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.event, color: primaryColor, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _formatFecha(sub.fecha),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              'Subárea definida',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.check_circle, color: primaryColor, size: 20),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: Colors.redAccent),
+                        onPressed: () => _eliminarSubarea(i),
+                        tooltip: 'Eliminar subárea',
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ] else if (_topologiaId != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.orange.shade800),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Sin polígono padre en esta topología. Puedes continuar; las subáreas por día requieren un polígono definido en ModelAI.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.orange.shade900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -331,41 +1199,10 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                         _buildDropdownPequeno(usuario),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: usuario.mediciones.map((m) {
-                        final activo = m != 'Reforestación';
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: activo
-                                ? primaryColor
-                                : Colors.grey[100],
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                m,
-                                style: TextStyle(
-                                  color: activo ? Colors.white : Colors.grey[600],
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              if (activo) ...[
-                                const SizedBox(width: 4),
-                                const Icon(Icons.check,
-                                    color: Colors.white, size: 10),
-                              ],
-                            ],
-                          ),
-                        );
-                      }).toList(),
+                    const SizedBox(height: 4),
+                    Text(
+                      usuario.rol,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -378,6 +1215,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
   }
 
   Widget _buildDropdownPequeno(_UsuarioPlan usuario) {
+    final rolDropdown = RolesCampo.etiquetaParaDropdown(usuario.rol);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -386,10 +1224,10 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: usuario.rol,
+          value: rolDropdown,
           isDense: true,
           icon: const Icon(Icons.keyboard_arrow_down, size: 16),
-          items: ['Operador', 'Jefe', 'Supervisor']
+          items: ['Operador', 'Jefe de cuadrilla', 'Jefe', 'Supervisor']
               .map((r) => DropdownMenuItem(
             value: r,
             child: Text(r, style: const TextStyle(fontSize: 12)),
@@ -403,15 +1241,18 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     );
   }
 
-  // ── Paso 3: Requerimientos (la cabecera verde sigue siendo parte del contenido) ──
+  // ── Paso 3: Lista de chequeo ──────────────────────────────────────────────
 
   Widget _buildPaso3() {
+    if (_cargandoListasChequeo && _listasChequeoDisponibles.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Cabecera verde
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -422,157 +1263,550 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Requerimientos de Campo',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18)),
+                Text(
+                  'Lista de chequeo preoperacional',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  'Elige una de tus listas o crea una nueva con los ítems de verificación.',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
               ],
             ),
           ),
           const SizedBox(height: 20),
-
-          const Text('Configuración de lista de chequeo',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 12),
-
-          _buildDropdown(
-            hint: 'Seleccionar existente\nElegir una lista...',
-            valor: _checklistSeleccionado,
-            opciones: _checklists,
-            onChanged: (v) => setState(() => _checklistSeleccionado = v),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Mis listas personalizadas',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              TextButton.icon(
+                onPressed: _abrirCrearListaChequeo,
+                icon: Icon(Icons.add, color: primaryColor, size: 20),
+                label: Text(
+                  'Crear nueva',
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-
-          OutlinedButton.icon(
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              minimumSize: const Size(double.infinity, 50),
-              side: BorderSide(color: Colors.grey[300]!),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+          const SizedBox(height: 8),
+          if (_listasPropias.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Text(
+                'Aún no tienes listas propias. Crea una con los ítems que tu cuadrilla debe verificar.',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+            )
+          else
+            ..._listasPropias.map(
+              (lista) => _buildTarjetaListaChequeo(lista, editable: true),
             ),
-            icon: Icon(Icons.add, color: primaryColor),
-            label: Text('Crear nueva',
-                style: TextStyle(
-                    color: primaryColor, fontWeight: FontWeight.w600)),
-            onPressed: () {},
-          ),
           const SizedBox(height: 24),
-
-          const Text('Requerimientos de Campo',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 12),
-
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[200]!),
-            ),
-            child: Column(
-              children: _requerimientos.asMap().entries.map((entry) {
-                final i = entry.key;
-                final req = entry.value;
-                final esUltimo = i == _requerimientos.length - 1;
-
-                IconData icono;
-                switch (req['icono']) {
-                  case 'casco':
-                    icono = Icons.safety_check_outlined;
-                    break;
-                  case 'sensor':
-                    icono = Icons.build_outlined;
-                    break;
-                  default:
-                    icono = Icons.location_on_outlined;
-                }
-
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(icono, color: primaryColor, size: 22),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(req['titulo']!,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 14)),
-                                const SizedBox(height: 2),
-                                Text(req['subtitulo']!,
-                                    style: TextStyle(
-                                        color: Colors.grey[500],
-                                        fontSize: 12)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!esUltimo) Divider(height: 1, color: Colors.grey[100]),
-                  ],
-                );
-              }).toList(),
-            ),
+          const Text(
+            'Listas del administrador',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
+          const SizedBox(height: 8),
+          if (_listasAdmin.isEmpty)
+            Text(
+              'No hay listas del administrador disponibles.',
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            )
+          else
+            ..._listasAdmin.map(
+              (lista) => _buildTarjetaListaChequeo(lista, editable: false),
+            ),
+          if (_listaChequeoSeleccionada != null) ...[
+            const SizedBox(height: 24),
+            const Text(
+              'Ítems seleccionados',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: primaryColor.withOpacity(0.3)),
+              ),
+              child: Column(
+                children: _listaChequeoSeleccionada!.items.asMap().entries.map(
+                  (entry) {
+                    final i = entry.key;
+                    final item = entry.value;
+                    final esUltimo =
+                        i == _listaChequeoSeleccionada!.items.length - 1;
+                    return Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: cardColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  _iconoItemChecklist(item.icono),
+                                  color: primaryColor,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.titulo,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    if (item.descripcion.isNotEmpty) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        item.descripcion,
+                                        style: TextStyle(
+                                          color: Colors.grey[500],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!esUltimo)
+                          Divider(height: 1, color: Colors.grey[100]),
+                      ],
+                    );
+                  },
+                ).toList(),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  // ── Paso 4: Topología (se quitaron títulos repetidos) ─────────────────────
+  Widget _buildTarjetaListaChequeo(ListaChequeo lista, {required bool editable}) {
+    final seleccionada = _listaChequeoSeleccionada?.id == lista.id;
 
-  Widget _buildPaso4() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: seleccionada ? primaryColor : Colors.grey[200]!,
+          width: seleccionada ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _seleccionarListaChequeo(lista),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Icon(
+                seleccionada
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_off,
+                color: seleccionada ? primaryColor : Colors.grey[400],
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Topología / Zona',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 14)),
-                    const SizedBox(height: 8),
-                    _buildDropdown(
-                      hint: 'Seleccionar zona...',
-                      valor: _zonaSeleccionada,
-                      opciones: _zonas,
-                      onChanged: (v) =>
-                          setState(() => _zonaSeleccionada = v),
+                    Text(
+                      lista.nombre,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    if (lista.descripcion != null &&
+                        lista.descripcion!.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        lista.descripcion!,
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            lista.origen.etiqueta,
+                            style: TextStyle(fontSize: 11, color: primaryColor),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${lista.items.length} ítem(s)',
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              if (editable)
+                PopupMenuButton<String>(
+                  icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+                  onSelected: (accion) {
+                    if (accion == 'editar') {
+                      _abrirEditarListaChequeo(lista);
+                    } else if (accion == 'eliminar') {
+                      _confirmarEliminarLista(lista);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'editar', child: Text('Editar')),
+                    PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Paso 4: Asignación de plantillas ──────────────────────────────────────
+
+  Widget _buildPaso4() {
+    final responsablesCount = _responsablesPlantilla.length;
+    final operadoresCount = _operadoresSeleccionados.length;
+    final jefesCount = responsablesCount - operadoresCount;
+    final textoEquipo = jefesCount > 0 && operadoresCount > 0
+        ? '$operadoresCount operador(es) y $jefesCount jefe(s) de cuadrilla'
+        : jefesCount > 0
+            ? '$jefesCount jefe(s) de cuadrilla en el equipo'
+            : operadoresCount == 1
+                ? '1 operador en el equipo'
+                : '$operadoresCount operadores en el equipo';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Asignación de plantillas',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Asigna mediciones (features) de cada plantilla a ti mismo o a los operadores del equipo.',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 12),
               Container(
-                width: 56,
-                height: 56,
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: cardColor,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(Icons.map_outlined, color: primaryColor, size: 28),
+                child: Row(
+                  children: [
+                    Icon(Icons.people_outline, color: primaryColor, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        textoEquipo,
+                        style: TextStyle(fontSize: 13, color: primaryColor),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
+          ),
+        ),
+        if (_cargandoPlantillas)
+          const Expanded(
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_errorPlantillas != null && _plantillasDisponibles.isEmpty)
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.description_outlined,
+                        size: 48, color: Colors.grey[400]),
+                    const SizedBox(height: 12),
+                    Text(
+                      _errorPlantillas!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() => _plantillasDisponibles = []);
+                        _cargarPlantillasSiNecesario();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Reintentar'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        else
+          Expanded(
+            child: _asignacionesPlantillas.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.assignment_outlined,
+                              size: 56, color: Colors.grey[300]),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Sin asignaciones aún',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Ej: asignar PLANTILLA_MARCAR_ARBOL a un operador que cubre dos tareas.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 80),
+                    itemCount: _asignacionesPlantillas.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (ctx, i) =>
+                        _buildTarjetaAsignacion(i, _asignacionesPlantillas[i]),
+                  ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: primaryColor),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: _plantillasDisponibles.isEmpty && !_cargandoPlantillas
+                  ? () {
+                      setState(() => _plantillasDisponibles = []);
+                      _cargarPlantillasSiNecesario().then((_) {
+                        if (_plantillasDisponibles.isNotEmpty) {
+                          _abrirNuevaAsignacion();
+                        }
+                      });
+                    }
+                  : _abrirNuevaAsignacion,
+              icon: Icon(Icons.add, color: primaryColor),
+              label: Text(
+                'Nueva asignación',
+                style: TextStyle(
+                  color: primaryColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTarjetaAsignacion(int index, AsignacionPlantillaPlan asignacion) {
+    final tareasOperador = _asignacionesPlantillas
+        .where((a) => a.operadorNombre == asignacion.operadorNombre)
+        .length;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.description_outlined,
+                    color: primaryColor, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      asignacion.templateNombre,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.person_outline,
+                            size: 14, color: Colors.grey[600]),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            asignacion.operadorNombre,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ),
+                        if (tareasOperador > 1)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$tareasOperador tareas',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: primaryColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (asignacion.fechaSubArea != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Día: ${_formatFecha(asignacion.fechaSubArea!)}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+                onSelected: (accion) {
+                  if (accion == 'editar') {
+                    _abrirNuevaAsignacion(indiceEdicion: index);
+                  } else if (accion == 'eliminar') {
+                    _eliminarAsignacion(index);
+                  }
+                },
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'editar',
+                    child: Text('Editar / reasignar'),
+                  ),
+                  PopupMenuItem(
+                    value: 'eliminar',
+                    child: Text('Eliminar'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: asignacion.featureNombres.map((nombre) {
+              return Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  nombre,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -613,6 +1847,15 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                       ? _nombrePlanCtrl.text
                       : 'Sin nombre',
                 ),
+                if (_fechaInicioPlan != null && _fechaFinPlan != null) ...[
+                  Divider(height: 1, color: Colors.grey[100]),
+                  _buildFilaResumen(
+                    icono: Icons.date_range_outlined,
+                    label: 'Vigencia:',
+                    valor:
+                        '${_formatFecha(_fechaInicioPlan!)} — ${_formatFecha(_fechaFinPlan!)}',
+                  ),
+                ],
                 Divider(height: 1, color: Colors.grey[100]),
                 _buildFilaResumen(
                   icono: Icons.group_outlined,
@@ -622,18 +1865,81 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                 Divider(height: 1, color: Colors.grey[100]),
                 _buildFilaResumen(
                   icono: Icons.checklist_outlined,
-                  label: 'Checklist Seleccionado:',
-                  valor: _checklistSeleccionado ?? 'Sin checklist',
+                  label: 'Lista de chequeo:',
+                  valor: _listaChequeoSeleccionada != null
+                      ? '${_listaChequeoSeleccionada!.nombre} (${_listaChequeoSeleccionada!.items.length} ítems)'
+                      : 'Sin checklist',
                 ),
                 Divider(height: 1, color: Colors.grey[100]),
                 _buildFilaResumen(
                   icono: Icons.location_on_outlined,
-                  label: 'Plantilla/Zona:',
-                  valor: _zonaSeleccionada ?? 'Sin zona',
+                  label: 'Ubicación (topología):',
+                  valor: _ubicacionRuta ?? 'Sin ubicación',
                 ),
+                if (_subAreasPorDia.isNotEmpty) ...[
+                  Divider(height: 1, color: Colors.grey[100]),
+                  _buildFilaResumen(
+                    icono: Icons.map_outlined,
+                    label: 'Subáreas por día:',
+                    valor: '${_subAreasPorDia.length} día(s)',
+                  ),
+                ],
+                if (_asignacionesPlantillas.isNotEmpty) ...[
+                  Divider(height: 1, color: Colors.grey[100]),
+                  _buildFilaResumen(
+                    icono: Icons.assignment_outlined,
+                    label: 'Asignaciones de plantillas:',
+                    valor: '${_asignacionesPlantillas.length} tarea(s)',
+                  ),
+                ],
               ],
             ),
           ),
+          if (_asignacionesPlantillas.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Detalle de asignaciones',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ..._asignacionesPlantillas.map((a) {
+              final fecha = a.fechaSubArea != null
+                  ? ' · ${_formatFecha(a.fechaSubArea!)}'
+                  : '';
+              return Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      a.templateNombre,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${a.operadorNombre}$fecha',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      a.featureNombres.join(', '),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
         ],
       ),
     );
@@ -700,36 +2006,6 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     );
   }
 
-  Widget _buildDropdown({
-    required String hint,
-    required String? valor,
-    required List<String> opciones,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          isExpanded: true,
-          hint: Text(hint,
-              style: TextStyle(color: Colors.grey[400], fontSize: 14)),
-          value: valor,
-          icon:
-          Icon(Icons.keyboard_arrow_down, color: Colors.grey[400]),
-          items: opciones
-              .map((o) => DropdownMenuItem(value: o, child: Text(o)))
-              .toList(),
-          onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-
   // ── Build principal (con header y footer unificados) ──────────────────────
 
   @override
@@ -754,7 +2030,13 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
           },
         ),
         title: Text(
-          esResumen ? 'Resumen' : 'Crear Plan de Campo',
+          esResumen
+              ? 'Resumen'
+              : _salidaIdEnEdicion != null
+                  ? 'Editar plan de campo'
+                  : widget.salidaInicial?.salidaOrigenId != null
+                      ? 'Revisar salida clonada'
+                      : 'Crear Plan de Campo',
           style: const TextStyle(
               color: Colors.black87,
               fontWeight: FontWeight.bold,
@@ -856,10 +2138,65 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
   }
 
   Future<void> _crearPlan() async {
-    // TODO: guardar con Amplify.DataStore.save(Plan(...))
+    final lista = _listaChequeoSeleccionada;
+    final checklistPlan = lista != null
+        ? ChecklistPlanAsignado(
+            listaId: lista.id,
+            nombre: lista.nombre,
+            origen: lista.origen.toJson(),
+            items: List<ItemListaChequeo>.from(lista.items),
+          )
+        : null;
+
+    final ahora = DateTime.now();
+    final salida = SalidaCampo(
+      id: _salidaIdEnEdicion ?? ServicioSalida.generarId(),
+      nombre: _nombrePlanCtrl.text.trim(),
+      estado: EstadoSalida.borrador,
+      fechaInicio: _fechaInicioPlan,
+      fechaFin: _fechaFinPlan,
+      proyectoId: _proyectoId,
+      proyectoNombre: _proyectoNombre,
+      topologiaId: _topologiaId,
+      ubicacionRuta: _ubicacionRuta,
+      poligonoPadreGeoJson: _poligonoPadreGeoJson,
+      subAreasPorDia: List<SubAreaPlanDia>.from(_subAreasPorDia),
+      equipo: _usuariosSeleccionados
+          .map(
+            (u) => MiembroEquipoPlan(
+              nombre: RolesCampo.normalizarNombre(u.nombre),
+              rol: RolesCampo.etiquetaParaDropdown(u.rol),
+            ),
+          )
+          .toList(),
+      checklistNombre: lista?.nombre,
+      checklist: checklistPlan,
+      asignacionesPlantillas:
+          List<AsignacionPlantillaPlan>.from(_asignacionesPlantillas),
+      salidaOrigenId: widget.salidaInicial?.salidaOrigenId,
+      motivoClonacion: widget.salidaInicial?.motivoClonacion,
+      creadoEn: widget.salidaInicial?.creadoEn ?? ahora,
+      actualizadoEn: ahora,
+    );
+
+    try {
+      await ServicioSalida.publicar(salida);
+    } catch (e) {
+      debugPrint('No se pudo publicar la salida: $e');
+      if (!mounted) return;
+      _mostrarError('No se pudo guardar la salida: $e');
+      return;
+    }
+
+    if (!mounted) return;
+    final esClon = widget.salidaInicial?.salidaOrigenId != null;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('¡Plan creado exitosamente!'),
+        content: Text(
+          esClon
+              ? '¡Salida clonada y publicada correctamente!'
+              : '¡Salida publicada correctamente!',
+        ),
         backgroundColor: primaryColor,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -871,14 +2208,41 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
 
 // ── Modelo local ──────────────────────────────────────────────────────────────
 
+_UsuarioPlan _usuarioPlanDesdeMiembro(MiembroEquipoPlan miembro) {
+  final cognito = RolesCampo.esLiderCuadrilla(miembro.rol)
+      ? 'lider_cuadrilla'
+      : 'operador';
+  return _UsuarioPlan(
+    nombre: RolesCampo.normalizarNombre(miembro.nombre, rolCognito: cognito),
+    rol: RolesCampo.etiquetaParaDropdown(miembro.rol),
+  );
+}
+
+AsignacionPlantillaPlan _normalizarAsignacion(AsignacionPlantillaPlan a) {
+  return a.copyWith(
+    operadorNombre: RolesCampo.normalizarNombre(a.operadorNombre),
+    operadorRol: RolesCampo.etiquetaParaDropdown(a.operadorRol),
+  );
+}
+
+({String nombre, String rol, String? userId}) _responsableParaSheet(
+  _UsuarioPlan o,
+) {
+  return (
+    nombre: RolesCampo.normalizarNombre(o.nombre),
+    rol: RolesCampo.etiquetaParaDropdown(o.rol),
+    userId: o.userId.isNotEmpty ? o.userId : null,
+  );
+}
+
 class _UsuarioPlan {
+  final String userId;
   final String nombre;
   String rol;
-  final List<String> mediciones;
 
   _UsuarioPlan({
+    this.userId = '',
     required this.nombre,
     required this.rol,
-    required this.mediciones,
   });
 }

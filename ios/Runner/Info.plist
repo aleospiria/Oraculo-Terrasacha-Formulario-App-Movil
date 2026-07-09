@@ -46,6 +46,12 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Esta app necesita acceder a tu ubicación para registrar las coordenadas del lugar.</string>
+	<string>La app necesita tu ubicación para registrar las coordenadas GPS de las tareas de campo.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>La app necesita tu ubicación para registrar las coordenadas GPS de las tareas de campo.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>La app necesita la cámara para adjuntar evidencia fotográfica del chequeo de transporte.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>La app necesita acceso a tus fotos para adjuntar evidencia del chequeo de transporte.</string>
 </dict>
 </plist>

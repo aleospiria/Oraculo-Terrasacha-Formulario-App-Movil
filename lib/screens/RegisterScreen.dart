@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/servicioAutenticacion.dart';
-import '../main.dart';
+import '../utils/estado_verificacion.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
