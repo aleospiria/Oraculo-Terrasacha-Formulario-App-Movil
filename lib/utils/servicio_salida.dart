@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/checklist_salida_ejecucion.dart';
 import '../models/chequeo_vehiculo.dart';
 import '../models/coordenada_actual.dart';
 import '../models/plan_campo_borrador.dart';
@@ -196,7 +197,7 @@ class ServicioSalida {
     }
     for (final c in ejecucion.checklistItems) {
       total++;
-      if (c.completado) completados++;
+      if (c.completado || ejecucion.checklistCompletado) completados++;
     }
 
     final chequeo = ejecucion.chequeoVehiculo;
@@ -292,10 +293,12 @@ class ServicioSalida {
           asignaciones.where((a) => pendientes.contains(a.id)).toList();
 
       if (checklist != null) {
-        final itemsCompletos = ejecucion.checklistItems
-            .where((c) => c.completado)
-            .map((c) => c.itemId)
-            .toSet();
+        final itemsCompletos = ejecucion.checklistCompletado
+            ? checklist.items.map((i) => i.id).toSet()
+            : ejecucion.checklistItems
+                .where((c) => c.completado)
+                .map((c) => c.itemId)
+                .toSet();
         checklist = ChecklistPlanAsignado(
           listaId: checklist.listaId,
           nombre: checklist.nombre,
@@ -405,6 +408,37 @@ class ServicioSalida {
       ejecucion.copyWith(
         checklistItems: items,
         actualizadoEn: DateTime.now(),
+      ),
+    );
+
+    await _sincronizarEstadoSalida(salidaId);
+  }
+
+  /// Guarda el estado del checklist de salida (ítems, evidencias y cierre).
+  static Future<void> guardarChecklistEjecucion({
+    required String salidaId,
+    required List<ChecklistItemEjecucionSalida> items,
+    required List<EvidenciaChecklistSalida> evidencias,
+    required String observaciones,
+    required bool completado,
+    String? completadoPorNombre,
+    String? completadoPorUserId,
+  }) async {
+    final ejecucion = await obtenerEjecucion(salidaId);
+    final ahora = DateTime.now();
+
+    await _guardarEjecucion(
+      ejecucion.copyWith(
+        checklistItems: items,
+        checklistEvidencias: evidencias,
+        checklistObservaciones: observaciones,
+        checklistCompletado: completado,
+        checklistCompletadoPorNombre:
+            completado ? completadoPorNombre : null,
+        checklistCompletadoPorUserId:
+            completado ? completadoPorUserId : null,
+        checklistCompletadoEn: completado ? ahora : null,
+        actualizadoEn: ahora,
       ),
     );
 

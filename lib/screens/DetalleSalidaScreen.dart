@@ -6,6 +6,7 @@ import '../models/plan_campo_borrador.dart';
 import '../utils/flujo_asignacion_plantilla.dart';
 import '../utils/servicio_salida.dart';
 import 'ChequeoVehiculoScreen.dart';
+import 'ChecklistSalidaScreen.dart';
 import 'CreacionPlanScreen.dart';
 
 class DetalleSalidaScreen extends StatefulWidget {
@@ -98,7 +99,39 @@ class _DetalleSalidaScreenState extends State<DetalleSalidaScreen> {
 
   bool get _puedeEditarChequeo => hasRole('lider_cuadrilla');
 
+  bool get _puedeEditarChecklist => hasRole('lider_cuadrilla');
+
   ChequeoVehiculoSalida? get _chequeoVehiculo => _ejecucion?.chequeoVehiculo;
+
+  bool get _checklistCompletadoFormalmente =>
+      _ejecucion?.checklistCompletado == true;
+
+  int get _checklistItemsCompletados {
+    final ejecucion = _ejecucion;
+    final checklist = _salida?.checklist;
+    if (ejecucion == null || checklist == null) return 0;
+    if (ejecucion.checklistCompletado) return checklist.items.length;
+    return ejecucion.checklistItems.where((c) => c.completado).length;
+  }
+
+  Future<void> _abrirChecklistSalida() async {
+    final checklist = _salida?.checklist;
+    if (checklist == null) return;
+
+    final actualizado = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChecklistSalidaScreen(
+          salidaId: widget.salidaId,
+          checklist: checklist,
+          editable: _puedeEditarChecklist,
+        ),
+      ),
+    );
+    if (actualizado == true && mounted) {
+      await _cargar();
+    }
+  }
 
   Future<void> _abrirChequeoVehiculo() async {
     final actualizado = await Navigator.push<bool>(
@@ -294,18 +327,138 @@ class _DetalleSalidaScreenState extends State<DetalleSalidaScreen> {
   }
 
   bool _checklistCompletado(String itemId) {
+    if (_checklistCompletadoFormalmente) return true;
     final match = _ejecucion?.checklistItems.where((c) => c.itemId == itemId);
     if (match == null || match.isEmpty) return false;
     return match.first.completado;
   }
 
-  Future<void> _toggleChecklistItem(String itemId) async {
-    await ServicioSalida.actualizarChecklistItem(
-      salidaId: widget.salidaId,
-      itemId: itemId,
-      completado: !_checklistCompletado(itemId),
+  Widget _buildSeccionChecklist(ChecklistPlanAsignado checklist) {
+    final total = checklist.items.length;
+    final completados = _checklistItemsCompletados;
+    final enProgreso = completados > 0 && !_checklistCompletadoFormalmente;
+
+    final Color estadoColor = _checklistCompletadoFormalmente
+        ? primaryColor
+        : (enProgreso ? const Color(0xFFDD6B20) : Colors.grey);
+    final String estadoTexto = _checklistCompletadoFormalmente
+        ? 'Completado'
+        : (enProgreso ? 'En progreso' : 'Pendiente');
+
+    return _buildSeccion(
+      titulo: 'Checklist',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(
+                _checklistCompletadoFormalmente
+                    ? Icons.check_circle
+                    : Icons.checklist_rtl_outlined,
+                color: estadoColor,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                estadoTexto,
+                style: TextStyle(
+                  color: estadoColor,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '$completados de $total ítems',
+            style: TextStyle(color: Colors.grey[700], fontSize: 13),
+          ),
+          if (_ejecucion?.checklistCompletadoPorNombre != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Cerrado por ${_ejecucion!.checklistCompletadoPorNombre}',
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
+          ],
+          if (_ejecucion != null &&
+              _ejecucion!.checklistEvidencias.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              '${_ejecucion!.checklistEvidencias.length} evidencia(s) adjunta(s)',
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            ),
+          ],
+          const SizedBox(height: 12),
+          ...checklist.items.map((item) {
+            final marcado = _checklistCompletado(item.id);
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    marcado
+                        ? Icons.check_box
+                        : Icons.check_box_outline_blank,
+                    color: marcado ? primaryColor : Colors.grey[400],
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.titulo,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight:
+                                marcado ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
+                        if (item.descripcion.isNotEmpty)
+                          Text(
+                            item.descripcion,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _abrirChecklistSalida,
+            icon: Icon(
+              _puedeEditarChecklist
+                  ? Icons.fact_check_outlined
+                  : Icons.visibility_outlined,
+              color: primaryColor,
+            ),
+            label: Text(
+              _puedeEditarChecklist && !_checklistCompletadoFormalmente
+                  ? 'Completar checklist'
+                  : 'Ver checklist',
+              style: TextStyle(
+                color: primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: BorderSide(color: primaryColor),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ],
+      ),
     );
-    await _cargar();
   }
 
   String _formatFecha(DateTime? fecha) {
@@ -408,28 +561,7 @@ class _DetalleSalidaScreenState extends State<DetalleSalidaScreen> {
                       ),
                       const SizedBox(height: 12),
                       if (salida.checklist != null)
-                        _buildSeccion(
-                          titulo: 'Checklist',
-                          child: Column(
-                            children: salida.checklist!.items
-                                .map(
-                                  (item) => CheckboxListTile(
-                                    value: _checklistCompletado(item.id),
-                                    onChanged: (_) =>
-                                        _toggleChecklistItem(item.id),
-                                    title: Text(item.titulo),
-                                    subtitle: item.descripcion.isNotEmpty
-                                        ? Text(item.descripcion)
-                                        : null,
-                                    activeColor: primaryColor,
-                                    controlAffinity:
-                                        ListTileControlAffinity.leading,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                )
-                                .toList(),
-                          ),
-                        ),
+                        _buildSeccionChecklist(salida.checklist!),
                       if (salida.salidaOrigenId != null) ...[
                         const SizedBox(height: 12),
                         Text(

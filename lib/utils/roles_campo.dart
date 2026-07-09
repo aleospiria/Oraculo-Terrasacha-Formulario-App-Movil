@@ -21,6 +21,18 @@ class RolesCampo {
   static bool puedeRecibirPlantilla(String rol) =>
       esOperador(rol) || esLiderCuadrilla(rol);
 
+  /// Operador y jefe de cuadrilla capturan GPS al registrar mediciones en campo.
+  static bool capturaCoordenadasEnRegistro(String? rol) {
+    if (rol == null || rol.trim().isEmpty) return false;
+    return esOperador(rol) || esLiderCuadrilla(rol);
+  }
+
+  /// Roles de campo que pueden crear reportes de incidencias/accidentes.
+  static bool puedeReportarIncidencias(String? rol) {
+    if (rol == null || rol.trim().isEmpty) return false;
+    return esOperador(rol) || esLiderCuadrilla(rol) || esLiderProyecto(rol);
+  }
+
   static String etiquetaDesdeCognito(String? rolCognito) {
     switch (rolCognito?.toLowerCase().trim()) {
       case 'lider_cuadrilla':

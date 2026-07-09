@@ -305,7 +305,7 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
         ),
       ]),
       floatingActionButton: _selectedTab == 'Salidas' &&
-              hasAnyRole(['lider_proyecto', 'lider_cuadrilla'])
+              hasRole('lider_proyecto')
           ? FloatingActionButton(
               backgroundColor: primaryColor,
               onPressed: () async {

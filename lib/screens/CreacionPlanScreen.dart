@@ -8,7 +8,6 @@ import '../models/plan_campo_borrador.dart';
 import '../models/usuario_campo.dart';
 import '../utils/geojson_topology_helpers.dart';
 import '../utils/servicio_salida.dart';
-import '../utils/servicioAutenticacion.dart';
 import '../utils/servicio_lista_chequeo.dart';
 import '../utils/servicio_plantillas.dart';
 import '../config/crear_usuario_lambda_config.dart';
@@ -84,24 +83,30 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
   void initState() {
     super.initState();
     _pasoActual = widget.pasoInicial.clamp(1, 6);
-    if (widget.salidaInicial != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _hidratarDesdeSalida(widget.salidaInicial!);
-      });
-    } else {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _cargarUsuariosEquipoSiNecesario();
-      });
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!hasRole('lider_proyecto')) {
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Solo el líder de proyecto puede crear planes'),
+          ),
+        );
+        return;
+      }
+      if (widget.salidaInicial != null) {
+        await _hidratarDesdeSalida(widget.salidaInicial!);
+      } else {
+        await _cargarUsuariosEquipoSiNecesario();
+      }
+    });
   }
 
   Future<void> _cargarUsuariosEquipoSiNecesario() async {
     if (!CrearUsuarioLambdaConfig.isConfigured) {
-      await _asegurarJefeActualEnEquipo();
       return;
     }
     if (_usuariosApiCargados) {
-      await _asegurarJefeActualEnEquipo();
       return;
     }
 
@@ -132,31 +137,6 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     }
 
     _usuariosApiCargados = true;
-    await _asegurarJefeActualEnEquipo();
-  }
-
-  Future<void> _asegurarJefeActualEnEquipo() async {
-    if (!hasRole('lider_cuadrilla')) return;
-
-    final yo = await servicioAutenticacion.getUsuarioActual();
-    if (yo == null || !mounted) return;
-
-    final yaEnEquipo = _usuariosSeleccionados.any(
-      (u) =>
-          (yo.id.isNotEmpty && u.userId == yo.id) ||
-          u.nombre == yo.nombre,
-    );
-    if (yaEnEquipo) return;
-
-    setState(() {
-      _usuariosSeleccionados.add(
-        _UsuarioPlan(
-          userId: yo.id,
-          nombre: RolesCampo.normalizarNombre(yo.nombre, rolCognito: yo.rolCognito),
-          rol: yo.rolDisplay,
-        ),
-      );
-    });
   }
 
   Future<void> _hidratarDesdeSalida(SalidaCampo salida) async {
@@ -185,7 +165,6 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       );
 
     await _cargarUsuariosEquipoSiNecesario();
-    await _asegurarJefeActualEnEquipo();
 
     if (salida.checklist != null) {
       await _cargarListasChequeoSiNecesario();

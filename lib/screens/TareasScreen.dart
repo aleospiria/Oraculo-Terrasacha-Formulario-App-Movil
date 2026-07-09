@@ -1,9 +1,11 @@
 // lib/Screens/TareasScreen.dart
 import 'package:flutter/material.dart';
 
+import '../main.dart';
 import '../models/plan_campo_borrador.dart';
 import '../models/usuario_campo.dart';
 import '../screens/EjecucionRegistroScreen.dart';
+import '../utils/roles_campo.dart';
 import '../utils/servicioAutenticacion.dart';
 import '../utils/servicio_salida.dart';
 
@@ -194,6 +196,14 @@ class _TareasScreenState extends State<TareasScreen>
             fontSize: 18,
           ),
         ),
+        actions: [
+          if (RolesCampo.puedeReportarIncidencias(currentUserRole))
+            IconButton(
+              tooltip: 'Reportar incidencia',
+              icon: Icon(Icons.warning_amber_outlined, color: primaryColor),
+              onPressed: () => Navigator.pushNamed(context, '/incidencias'),
+            ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: primaryColor,

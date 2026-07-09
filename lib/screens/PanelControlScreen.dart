@@ -11,6 +11,7 @@ import 'package:capturador_datos_offline/main.dart';
 import '../models/Project.dart';
 import '../models/plan_campo_borrador.dart';
 import '../models/usuario_campo.dart';
+import '../utils/roles_campo.dart';
 import '../utils/servicio_salida.dart';
 import '../utils/servicioAutenticacion.dart';
 import 'AjustesRetencionScreen.dart';
@@ -494,6 +495,52 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                   ),
                 ),
               ),
+              if (RolesCampo.puedeReportarIncidencias(currentUserRole)) ...[
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/incidencias'),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            color: Colors.red.shade400, size: 32),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Reportar incidencia',
+                                style: TextStyle(
+                                  color: Colors.red.shade700,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Accidentes y eventos en campo',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right, color: Colors.red.shade300),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
             const SizedBox(height: 80),
           ],
@@ -516,6 +563,8 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
             if (index == 1) {
               Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const TareasScreen()));
+            } else if (index == 2) {
+              Navigator.pushNamed(context, '/incidencias');
             }
           } else {
             if (index == 1) {
@@ -543,7 +592,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
 
   String _navLabel(int index) {
     if (hasRole('operador')) {
-      const labels = ['Inicio', 'Tareas'];
+      const labels = ['Inicio', 'Tareas', 'Reportes'];
       return labels[index];
     }
     const labels = ['Inicio', 'Proyectos', 'Tareas', 'Mapas', 'Más'];
@@ -555,6 +604,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
       return const [
         BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Inicio'),
         BottomNavigationBarItem(icon: Icon(Icons.assignment_outlined), activeIcon: Icon(Icons.assignment), label: 'Tareas'),
+        BottomNavigationBarItem(icon: Icon(Icons.warning_amber_outlined), activeIcon: Icon(Icons.warning_amber), label: 'Reportes'),
       ];
     }
     return const [
@@ -569,7 +619,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
   Widget _buildQuickActions() {
     final acciones = <Widget>[];
 
-    if (hasAnyRole(['lider_proyecto', 'lider_cuadrilla'])) {
+    if (hasRole('lider_proyecto')) {
       acciones.add(Expanded(
         child: GestureDetector(
           onTap: () async {

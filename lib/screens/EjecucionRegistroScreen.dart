@@ -1,4 +1,4 @@
-﻿// lib/screens/EjecucionRegistroScreen.dart
+// lib/screens/EjecucionRegistroScreen.dart
 import 'package:flutter/material.dart';
 
 import '../main.dart';
@@ -7,7 +7,7 @@ import '../utils/roles_campo.dart';
 import '../utils/servicio_salida.dart';
 import '../utils/servicio_ubicacion_actual.dart';
 import '../widgets/coordenada_actual_panel.dart';
-import 'package:capturador_datos_offline/Utils/GrabadorAudio.dart';
+import '../utils/servicio_audios.dart';
 import 'package:capturador_datos_offline/screens/FinalizarTareaScreen.dart';
 
 class EjecucionRegistroScreen extends StatefulWidget {
@@ -21,7 +21,7 @@ class EjecucionRegistroScreen extends StatefulWidget {
     super.key,
     this.salidaId,
     this.asignacionId,
-    this.tituloTarea = 'EjecuciÃ³n de registro',
+    this.tituloTarea = 'Ejecución de registro',
     this.ubicacionRuta,
     this.featureNombres = const [],
   });
@@ -41,12 +41,14 @@ class _EjecucionRegistroScreenState extends State<EjecucionRegistroScreen> {
   bool _guardando = false;
   CoordenadaActual? _coordenadaActual;
 
-  bool get _esOperador =>
+  bool get _registraMedicionEnCampo =>
       hasRole('operador') ||
-      RolesCampo.esOperador(currentUserRole ?? '');
+      hasRole('lider_cuadrilla') ||
+      RolesCampo.capturaCoordenadasEnRegistro(currentUserRole);
 
   bool get _requiereCoordenadas =>
-      _esOperador || plantillaRequiereCoordenadasGps(widget.featureNombres);
+      _registraMedicionEnCampo ||
+      plantillaRequiereCoordenadasGps(widget.featureNombres);
 
   bool get _mostrarCoordenadas => _requiereCoordenadas;
 
@@ -80,7 +82,7 @@ class _EjecucionRegistroScreenState extends State<EjecucionRegistroScreen> {
     if (_rutaAudio == null && _observacionesCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Agrega al menos un audio o una observaciÃ³n'),
+          content: Text('Agrega al menos un audio o una observación'),
         ),
       );
       return;
@@ -94,7 +96,7 @@ class _EjecucionRegistroScreenState extends State<EjecucionRegistroScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Se requiere seÃ±al GPS para finalizar. Activa la ubicaciÃ³n e intenta de nuevo.',
+            'Se requiere señal GPS para finalizar. Activa la ubicación e intenta de nuevo.',
           ),
         ),
       );
@@ -150,7 +152,7 @@ class _EjecucionRegistroScreenState extends State<EjecucionRegistroScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'EjecuciÃ³n de Registro',
+          'Ejecución de Registro',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -225,7 +227,7 @@ class _EjecucionRegistroScreenState extends State<EjecucionRegistroScreen> {
                     : Icon(_tareaFinalizada ? Icons.check : Icons.save),
                 label: Text(
                   _guardando
-                      ? 'Guardandoâ€¦'
+                      ? 'Guardando…'
                       : _tareaFinalizada
                           ? 'Registro Guardado'
                           : 'Finalizar y Guardar',
@@ -297,7 +299,7 @@ class _EjecucionRegistroScreenState extends State<EjecucionRegistroScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Text(
-              'En ejecuciÃ³n',
+              'En ejecución',
               style: TextStyle(
                 color: primaryColor,
                 fontWeight: FontWeight.bold,
@@ -387,7 +389,7 @@ class _EjecucionRegistroScreenState extends State<EjecucionRegistroScreen> {
             controller: _observacionesCtrl,
             maxLines: 4,
             decoration: InputDecoration(
-              hintText: 'Escribe tus observaciones aquÃ­...',
+              hintText: 'Escribe tus observaciones aquí...',
               hintStyle: TextStyle(color: Colors.grey.shade400),
               filled: true,
               fillColor: const Color(0xFFF5F5F5),

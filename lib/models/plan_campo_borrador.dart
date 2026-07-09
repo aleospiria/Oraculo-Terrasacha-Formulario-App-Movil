@@ -1,3 +1,4 @@
+import 'checklist_salida_ejecucion.dart';
 import 'chequeo_vehiculo.dart';
 import 'lista_chequeo.dart';
 
@@ -681,6 +682,12 @@ class EjecucionSalida {
   final String salidaId;
   final List<AsignacionEjecucionSalida> asignaciones;
   final List<ChecklistItemEjecucionSalida> checklistItems;
+  final List<EvidenciaChecklistSalida> checklistEvidencias;
+  final String checklistObservaciones;
+  final bool checklistCompletado;
+  final String? checklistCompletadoPorNombre;
+  final String? checklistCompletadoPorUserId;
+  final DateTime? checklistCompletadoEn;
   final ChequeoVehiculoSalida? chequeoVehiculo;
   final DateTime actualizadoEn;
 
@@ -688,6 +695,12 @@ class EjecucionSalida {
     required this.salidaId,
     this.asignaciones = const [],
     this.checklistItems = const [],
+    this.checklistEvidencias = const [],
+    this.checklistObservaciones = '',
+    this.checklistCompletado = false,
+    this.checklistCompletadoPorNombre,
+    this.checklistCompletadoPorUserId,
+    this.checklistCompletadoEn,
     this.chequeoVehiculo,
     required this.actualizadoEn,
   });
@@ -695,6 +708,12 @@ class EjecucionSalida {
   EjecucionSalida copyWith({
     List<AsignacionEjecucionSalida>? asignaciones,
     List<ChecklistItemEjecucionSalida>? checklistItems,
+    List<EvidenciaChecklistSalida>? checklistEvidencias,
+    String? checklistObservaciones,
+    bool? checklistCompletado,
+    String? checklistCompletadoPorNombre,
+    String? checklistCompletadoPorUserId,
+    DateTime? checklistCompletadoEn,
     ChequeoVehiculoSalida? chequeoVehiculo,
     DateTime? actualizadoEn,
   }) {
@@ -702,6 +721,16 @@ class EjecucionSalida {
       salidaId: salidaId,
       asignaciones: asignaciones ?? this.asignaciones,
       checklistItems: checklistItems ?? this.checklistItems,
+      checklistEvidencias: checklistEvidencias ?? this.checklistEvidencias,
+      checklistObservaciones:
+          checklistObservaciones ?? this.checklistObservaciones,
+      checklistCompletado: checklistCompletado ?? this.checklistCompletado,
+      checklistCompletadoPorNombre:
+          checklistCompletadoPorNombre ?? this.checklistCompletadoPorNombre,
+      checklistCompletadoPorUserId:
+          checklistCompletadoPorUserId ?? this.checklistCompletadoPorUserId,
+      checklistCompletadoEn:
+          checklistCompletadoEn ?? this.checklistCompletadoEn,
       chequeoVehiculo: chequeoVehiculo ?? this.chequeoVehiculo,
       actualizadoEn: actualizadoEn ?? this.actualizadoEn,
     );
@@ -711,6 +740,16 @@ class EjecucionSalida {
         'salidaId': salidaId,
         'asignaciones': asignaciones.map((a) => a.toJson()).toList(),
         'checklistItems': checklistItems.map((c) => c.toJson()).toList(),
+        'checklistEvidencias':
+            checklistEvidencias.map((e) => e.toJson()).toList(),
+        'checklistObservaciones': checklistObservaciones,
+        'checklistCompletado': checklistCompletado,
+        if (checklistCompletadoPorNombre != null)
+          'checklistCompletadoPorNombre': checklistCompletadoPorNombre,
+        if (checklistCompletadoPorUserId != null)
+          'checklistCompletadoPorUserId': checklistCompletadoPorUserId,
+        if (checklistCompletadoEn != null)
+          'checklistCompletadoEn': checklistCompletadoEn!.toIso8601String(),
         if (chequeoVehiculo != null) 'chequeoVehiculo': chequeoVehiculo!.toJson(),
         'actualizadoEn': actualizadoEn.toIso8601String(),
       };
@@ -732,6 +771,22 @@ class EjecucionSalida {
             ),
           )
           .toList(),
+      checklistEvidencias: (json['checklistEvidencias'] as List<dynamic>? ?? [])
+          .map(
+            (e) => EvidenciaChecklistSalida.fromJson(
+              e as Map<String, dynamic>,
+            ),
+          )
+          .toList(),
+      checklistObservaciones: json['checklistObservaciones'] as String? ?? '',
+      checklistCompletado: json['checklistCompletado'] as bool? ?? false,
+      checklistCompletadoPorNombre:
+          json['checklistCompletadoPorNombre'] as String?,
+      checklistCompletadoPorUserId:
+          json['checklistCompletadoPorUserId'] as String?,
+      checklistCompletadoEn: json['checklistCompletadoEn'] != null
+          ? DateTime.tryParse(json['checklistCompletadoEn'] as String)
+          : null,
       chequeoVehiculo: json['chequeoVehiculo'] != null
           ? ChequeoVehiculoSalida.fromJson(
               json['chequeoVehiculo'] as Map<String, dynamic>,
