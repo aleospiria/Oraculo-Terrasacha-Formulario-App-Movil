@@ -1,335 +1,90 @@
-// lib/Screens/RegistroIncidenciaScreen.dart
 import 'package:flutter/material.dart';
-
-enum NivelPrioridad { alta, media, baja }
-
-enum EstadoIncidencia { abierta, enProceso, resuelta }
-
-class Incidencia {
-  final String id;
-  final NivelPrioridad nivel;
-  final String descripcion;
-  final DateTime fechaCreacion;
-  EstadoIncidencia estado;
-
-  Incidencia({
-    required this.id,
-    required this.nivel,
-    required this.descripcion,
-    required this.fechaCreacion,
-    this.estado = EstadoIncidencia.abierta,
-  });
-}
+import '../models/reporte_accidente.dart';
+import '../utils/exportador_pdf.dart';
+import '../utils/servicio_accidentes.dart';
 
 class RegistroIncidenciaScreen extends StatefulWidget {
   const RegistroIncidenciaScreen({super.key});
 
   @override
-  State<RegistroIncidenciaScreen> createState() =>
-      _RegistroIncidenciaScreenState();
+  State<RegistroIncidenciaScreen> createState() => _RegistroIncidenciaScreenState();
 }
 
-class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen>
-    with SingleTickerProviderStateMixin {
+class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
   final Color primaryColor = const Color(0xFF4A5C24);
   final Color backgroundColor = const Color(0xFFF7F8F6);
+  final ServicioAccidentes _servicio = ServicioAccidentes();
 
-  late AnimationController _animController;
+  List<ReporteAccidente> _reportes = [];
+  bool _cargando = true;
+  final Set<String> _seleccionados = {};
+  String? _hashMaestro;
+  String? _hashMaestroAnterior;
+  bool _cargandoHash = false;
 
-  // Datos de prueba — cuando se conecte el backend se reemplaza por queries
-  final List<Incidencia> _incidencias = [
-    Incidencia(
-      id: '1',
-      nivel: NivelPrioridad.alta,
-      descripcion: 'Fuga de agua en parcela 3B. Requiere atención inmediata.',
-      fechaCreacion: DateTime.now().subtract(const Duration(minutes: 15)),
-      estado: EstadoIncidencia.abierta,
-    ),
-    Incidencia(
-      id: '2',
-      nivel: NivelPrioridad.media,
-      descripcion: 'Fallo en sensor de humedad, sector norte. Revisar conexión.',
-      fechaCreacion: DateTime.now().subtract(const Duration(hours: 1)),
-      estado: EstadoIncidencia.abierta,
-    ),
-    Incidencia(
-      id: '3',
-      nivel: NivelPrioridad.baja,
-      descripcion: 'Herramientas olvidadas en campo. Recoger al finalizar turno.',
-      fechaCreacion: DateTime.now().subtract(const Duration(hours: 3)),
-      estado: EstadoIncidencia.resuelta,
-    ),
-  ];
+  bool get _modoSeleccion => _seleccionados.isNotEmpty;
+  bool get _todosSeleccionados =>
+      _reportes.isNotEmpty && _seleccionados.length == _reportes.length;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..forward();
+    _cargar();
   }
 
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
+  Future<void> _cargar() async {
+    setState(() => _cargando = true);
+    final reportes = await _servicio.listar();
+    if (!mounted) return;
+    setState(() {
+      _reportes = reportes;
+      _cargando = false;
+      _seleccionados.clear();
+    });
+    _cargarHashMaestro();
   }
 
-  // ── Helpers de color y texto ──────────────────────────────────────────────
-
-  Color _colorNivel(NivelPrioridad nivel) {
-    switch (nivel) {
-      case NivelPrioridad.alta:
-        return const Color(0xFFE53E3E);
-      case NivelPrioridad.media:
-        return const Color(0xFFDD6B20);
-      case NivelPrioridad.baja:
-        return const Color(0xFF4A5C24);
-    }
+  Future<void> _cargarHashMaestro() async {
+    setState(() => _cargandoHash = true);
+    final results = await Future.wait([
+      _servicio.calcularHashMaestro(),
+      _servicio.obtenerHashMaestroAnterior(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _hashMaestro = results[0] as String;
+      _hashMaestroAnterior = results[1] as String?;
+      _cargandoHash = false;
+    });
   }
 
-  IconData _iconNivel(NivelPrioridad nivel) {
-    switch (nivel) {
-      case NivelPrioridad.alta:
-        return Icons.local_fire_department;
-      case NivelPrioridad.media:
-        return Icons.build;
-      case NivelPrioridad.baja:
-        return Icons.eco;
-    }
+  void _toggleUno(String id) {
+    setState(() {
+      if (_seleccionados.contains(id)) {
+        _seleccionados.remove(id);
+      } else {
+        _seleccionados.add(id);
+      }
+    });
   }
 
-  String _labelNivel(NivelPrioridad nivel) {
-    switch (nivel) {
-      case NivelPrioridad.alta:
-        return 'Alta';
-      case NivelPrioridad.media:
-        return 'Media';
-      case NivelPrioridad.baja:
-        return 'Baja';
-    }
+  void _toggleTodos() {
+    setState(() {
+      if (_todosSeleccionados) {
+        _seleccionados.clear();
+      } else {
+        _seleccionados.addAll(_reportes.map((r) => r.id));
+      }
+    });
   }
 
-  Color _colorEstado(EstadoIncidencia estado) {
-    switch (estado) {
-      case EstadoIncidencia.abierta:
-        return const Color(0xFFE53E3E);
-      case EstadoIncidencia.enProceso:
-        return const Color(0xFFDD6B20);
-      case EstadoIncidencia.resuelta:
-        return const Color(0xFF4A5C24);
-    }
+  void _salirSeleccion() {
+    setState(() => _seleccionados.clear());
   }
 
-  String _labelEstado(EstadoIncidencia estado) {
-    switch (estado) {
-      case EstadoIncidencia.abierta:
-        return 'Abierta';
-      case EstadoIncidencia.enProceso:
-        return 'En proceso';
-      case EstadoIncidencia.resuelta:
-        return 'Resuelta';
-    }
+  String _fechaFormateada(DateTime d) {
+    return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
   }
-
-  String _tiempoRelativo(DateTime fecha) {
-    final diff = DateTime.now().difference(fecha);
-    if (diff.inMinutes < 60) return 'Hace ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'Hace ${diff.inHours} hora${diff.inHours > 1 ? 's' : ''}';
-    return 'Hace ${diff.inDays} día${diff.inDays > 1 ? 's' : ''}';
-  }
-
-  // ── Diálogo para reportar nueva incidencia ────────────────────────────────
-
-  Future<void> _mostrarDialogoNuevaIncidencia() async {
-    NivelPrioridad nivelSeleccionado = NivelPrioridad.media;
-    final TextEditingController descCtrl = TextEditingController();
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 24,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Handle
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Nueva Incidencia',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: primaryColor,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Selector de nivel
-              const Text(
-                'Nivel de prioridad',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: NivelPrioridad.values.map((nivel) {
-                  final selected = nivel == nivelSeleccionado;
-                  final color = _colorNivel(nivel);
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () =>
-                          setModalState(() => nivelSeleccionado = nivel),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color:
-                          selected ? color.withOpacity(0.12) : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected ? color : Colors.transparent,
-                            width: 2,
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Icon(
-                              _iconNivel(nivel),
-                              color: selected ? color : Colors.grey,
-                              size: 22,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _labelNivel(nivel),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: selected
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: selected ? color : Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
-
-              // Campo descripción
-              const Text(
-                'Descripción',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: descCtrl,
-                maxLines: 3,
-                autofocus: true,
-                decoration: InputDecoration(
-                  hintText: 'Describe la incidencia...',
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                  filled: true,
-                  fillColor: Colors.grey[50],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: primaryColor, width: 2),
-                  ),
-                  contentPadding: const EdgeInsets.all(14),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Botón guardar
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    elevation: 0,
-                  ),
-                  onPressed: () {
-                    final desc = descCtrl.text.trim();
-                    if (desc.isEmpty) return;
-
-                    // TODO: cuando haya backend, guardar con Amplify.DataStore.save(...)
-                    setState(() {
-                      _incidencias.insert(
-                        0,
-                        Incidencia(
-                          id: DateTime.now().millisecondsSinceEpoch.toString(),
-                          nivel: nivelSeleccionado,
-                          descripcion: desc,
-                          fechaCreacion: DateTime.now(),
-                        ),
-                      );
-                    });
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text(
-                    'Reportar Incidencia',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -338,314 +93,375 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen>
       appBar: AppBar(
         backgroundColor: primaryColor,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Registro de Incidencias',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          // Resumen rápido
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-            child: Row(
-              children: [
-                _buildResumenChip(
-                  label: 'Abiertas',
-                  count: _incidencias
-                      .where((i) => i.estado == EstadoIncidencia.abierta)
-                      .length,
-                  color: const Color(0xFFE53E3E),
-                ),
-                const SizedBox(width: 12),
-                _buildResumenChip(
-                  label: 'En proceso',
-                  count: _incidencias
-                      .where((i) => i.estado == EstadoIncidencia.enProceso)
-                      .length,
-                  color: const Color(0xFFDD6B20),
-                ),
-                const SizedBox(width: 12),
-                _buildResumenChip(
-                  label: 'Resueltas',
-                  count: _incidencias
-                      .where((i) => i.estado == EstadoIncidencia.resuelta)
-                      .length,
-                  color: const Color(0xFF4A5C24),
-                ),
-              ],
-            ),
-          ),
-
-          const Divider(height: 1),
-
-          // Lista de incidencias
-          Expanded(
-            child: _incidencias.isEmpty
-                ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.check_circle_outline,
-                      size: 64, color: primaryColor.withOpacity(0.4)),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Sin incidencias reportadas',
-                    style: TextStyle(
-                      color: Colors.grey[500],
-                      fontSize: 16,
-                    ),
+        leading: _modoSeleccion
+            ? IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: _salirSeleccion,
+              )
+            : IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () => Navigator.pop(context),
+              ),
+        title: _modoSeleccion
+            ? Text(
+                '${_seleccionados.length} seleccionado${_seleccionados.length != 1 ? 's' : ''}',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              )
+            : const Text(
+                'Registro de Accidentes',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+        actions: _modoSeleccion
+            ? [
+                TextButton.icon(
+                  onPressed: _toggleTodos,
+                  icon: Icon(
+                    _todosSeleccionados ? Icons.deselect : Icons.select_all,
+                    color: Colors.white,
+                    size: 20,
                   ),
-                ],
+                  label: Text(
+                    _todosSeleccionados ? 'Ninguno' : 'Todos',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ]
+            : null,
+      ),
+      body: _cargando
+          ? const Center(child: CircularProgressIndicator())
+          : _reportes.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.shield_outlined, size: 72, color: primaryColor.withValues(alpha: 0.3)),
+                      const SizedBox(height: 16),
+                      Text('Sin reportes de accidentes', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                      const SizedBox(height: 8),
+                      Text('Toca el botón + para crear uno', style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _cargar,
+                  child: Column(
+                    children: [
+                      _buildHashMaestroCard(),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                          itemCount: _reportes.length,
+                          itemBuilder: (ctx, i) {
+                            final r = _reportes[i];
+                            return _buildCard(r);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+      floatingActionButton: _modoSeleccion
+          ? null
+          : FloatingActionButton(
+              backgroundColor: primaryColor,
+              onPressed: () async {
+                final resultado = await Navigator.pushNamed(context, '/reportar-incidencia');
+                if (resultado == true) _cargar();
+              },
+              child: const Icon(Icons.add, color: Colors.white),
+            ),
+      bottomNavigationBar: _modoSeleccion
+          ? Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 10, offset: const Offset(0, -2))],
+              ),
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: primaryColor,
+                          side: BorderSide(color: primaryColor),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: _eliminarSeleccionados,
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        label: const Text('Eliminar', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primaryColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        onPressed: () => _exportarSeleccionados(),
+                        icon: const Icon(Icons.download, size: 20),
+                        label: const Text('Exportar', style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             )
-                : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: _incidencias.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (ctx, index) {
-                final delay =
-                Duration(milliseconds: 80 * index);
-                return AnimatedBuilder(
-                  animation: _animController,
-                  builder: (ctx, child) {
-                    final progress = Curves.easeOut.transform(
-                      (((_animController.value * 1000) -
-                          delay.inMilliseconds) /
-                          400)
-                          .clamp(0.0, 1.0),
-                    );
-                    return Opacity(
-                      opacity: progress,
-                      child: Transform.translate(
-                        offset: Offset(0, 20 * (1 - progress)),
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: _buildIncidenciaCard(_incidencias[index]),
-                );
-              },
-            ),
+          : null,
+    );
+  }
+
+  void _eliminarSeleccionados() async {
+    if (_seleccionados.isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar reportes'),
+        content: Text('¿Eliminar ${_seleccionados.length} reporte${_seleccionados.length != 1 ? 's' : ''}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar todo', style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
+    );
+    if (confirm == true) {
+      for (final id in _seleccionados.toList()) {
+        await _servicio.eliminar(id);
+      }
+      _cargar();
+    }
+  }
 
-      // Botón inferior
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primaryColor,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-            elevation: 2,
-          ),
-          onPressed: _mostrarDialogoNuevaIncidencia,
-          child: const Text(
-            'Reportar Incidencia',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
+  Future<void> _exportarSeleccionados() async {
+    if (_seleccionados.isEmpty) return;
+
+    final reportesExport = _reportes.where((r) => _seleccionados.contains(r.id)).toList();
+
+    try {
+      if (reportesExport.length == 1) {
+        await ExportadorPdf.exportar(reportesExport.first);
+      } else {
+        await ExportadorPdf.exportarMultiples(reportesExport);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al exportar: $e'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
         ),
+      );
+    }
+  }
+
+  Widget _buildHashMaestroCard() {
+    if (_hashMaestro == null || _hashMaestro!.isEmpty) return const SizedBox.shrink();
+
+    final coincide = _hashMaestro == _hashMaestroAnterior;
+    final bool tieneAnterior = _hashMaestroAnterior != null && _hashMaestroAnterior!.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: coincide || !tieneAnterior ? Colors.white : Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: coincide || !tieneAnterior
+              ? Colors.grey[200]!
+              : Color(0xFFFFD54F),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                coincide || !tieneAnterior ? Icons.verified : Icons.warning_amber_rounded,
+                size: 18,
+                color: coincide || !tieneAnterior ? Colors.green : Color(0xFFF9A825),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                coincide || !tieneAnterior
+                    ? 'Integridad verificada'
+                    : '¡Se detectaron cambios!',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: coincide || !tieneAnterior ? Colors.green[700] : Color(0xFFF57F17),
+                ),
+              ),
+              const Spacer(),
+              if (_cargandoHash)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                GestureDetector(
+                  onTap: _actualizarHashMaestro,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: primaryColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Actualizar',
+                      style: TextStyle(fontSize: 11, color: primaryColor, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Actual:  ${_hashMaestro!.substring(0, 16)}...',
+            style: TextStyle(fontFamily: 'monospace', fontSize: 10, color: Colors.grey[600]),
+          ),
+          if (tieneAnterior)
+            Text(
+              'Anterior: ${_hashMaestroAnterior!.substring(0, 16)}...',
+              style: TextStyle(fontFamily: 'monospace', fontSize: 10, color: Colors.grey[400]),
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildResumenChip({
-    required String label,
-    required int count,
-    required Color color,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          children: [
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: color,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Future<void> _actualizarHashMaestro() async {
+    if (_hashMaestro == null || _hashMaestro!.isEmpty) return;
+    await _servicio.guardarHashMaestro(_hashMaestro!);
+    await _cargarHashMaestro();
   }
 
-  Widget _buildIncidenciaCard(Incidencia inc) {
-    final nivelColor = _colorNivel(inc.nivel);
+  Widget _buildCard(ReporteAccidente r) {
+    final seleccionado = _seleccionados.contains(r.id);
 
     return GestureDetector(
-      onTap: () async {
-        final resultado = await Navigator.pushNamed(
-          context,
-          '/reportar-incidencia',
-        );
-        if (resultado == true && mounted) {
-          setState(() {});
+      onTap: () {
+        if (_modoSeleccion) {
+          _toggleUno(r.id);
+        } else {
+          Navigator.pushNamed(context, '/reportar-incidencia', arguments: r.id).then((_) => _cargar());
         }
       },
+      onLongPress: () {
+        if (!_modoSeleccion) _toggleUno(r.id);
+      },
       child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: seleccionado ? primaryColor.withValues(alpha: 0.05) : Colors.white,
           borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          border: seleccionado ? Border.all(color: primaryColor.withValues(alpha: 0.3), width: 1.5) : null,
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
         ),
         child: IntrinsicHeight(
           child: Row(
             children: [
-              // Barra lateral de color
+              if (_modoSeleccion)
+                SizedBox(
+                  width: 48,
+                  child: Center(
+                    child: Checkbox(
+                      value: seleccionado,
+                      onChanged: (_) => _toggleUno(r.id),
+                      activeColor: primaryColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    ),
+                  ),
+                ),
               Container(
                 width: 5,
                 decoration: BoxDecoration(
-                  color: nivelColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(14),
-                    bottomLeft: Radius.circular(14),
+                  color: r.accidenteIncapacidad ? Colors.redAccent : primaryColor,
+                  borderRadius: BorderRadius.only(
+                    topLeft: _modoSeleccion ? Radius.zero : const Radius.circular(14),
+                    bottomLeft: _modoSeleccion ? Radius.zero : const Radius.circular(14),
                   ),
                 ),
               ),
-
-              // Contenido
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Cabecera: nivel + tiempo
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              Icon(_iconNivel(inc.nivel),
-                                  color: nivelColor, size: 18),
-                              const SizedBox(width: 6),
-                              Text(
-                                _labelNivel(inc.nivel),
-                                style: TextStyle(
-                                  color: nivelColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            _tiempoRelativo(inc.fechaCreacion),
-                            style: TextStyle(
-                              color: Colors.grey[400],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Descripción
-                      Text(
-                        inc.descripcion,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Badge estado + botón cambiar estado
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _colorEstado(inc.estado).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
+                          Expanded(
                             child: Text(
-                              _labelEstado(inc.estado),
-                              style: TextStyle(
-                                color: _colorEstado(inc.estado),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
+                              r.trabajadorNombre.isNotEmpty ? r.trabajadorNombre : 'Sin nombre',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                             ),
                           ),
-
-                          // Botón para avanzar estado (solo si no está resuelta)
-                          if (inc.estado != EstadoIncidencia.resuelta)
-                            TextButton(
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 4),
-                                minimumSize: Size.zero,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  inc.estado =
-                                  inc.estado == EstadoIncidencia.abierta
-                                      ? EstadoIncidencia.enProceso
-                                      : EstadoIncidencia.resuelta;
-                                });
-                              },
-                              child: Text(
-                                inc.estado == EstadoIncidencia.abierta
-                                    ? 'Marcar en proceso →'
-                                    : 'Marcar resuelta →',
-                                style: TextStyle(
-                                  color: primaryColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
+                          Text(_fechaFormateada(r.accidenteFecha),
+                              style: TextStyle(color: Colors.grey[400], fontSize: 12)),
                         ],
                       ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.work_outline, size: 14, color: Colors.grey[500]),
+                          const SizedBox(width: 4),
+                          Text(r.trabajadorCargo.isNotEmpty ? r.trabajadorCargo : 'Sin cargo',
+                              style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(Icons.category_outlined, size: 14, color: Colors.grey[500]),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(r.accidenteTipo.isNotEmpty ? r.accidenteTipo : 'Sin tipo',
+                                style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                          ),
+                        ],
+                      ),
+                      if (r.accidenteDescripcion.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(r.accidenteDescripcion, maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.grey[500], fontSize: 12, height: 1.3)),
+                      ],
+                      if (r.hashActual != null) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(Icons.verified, size: 13, color: Colors.grey[400]),
+                            const SizedBox(width: 4),
+                            Text(
+                              r.hashActual!.substring(0, 12),
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 10,
+                                color: Colors.grey[400],
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
             ],
           ),
         ),

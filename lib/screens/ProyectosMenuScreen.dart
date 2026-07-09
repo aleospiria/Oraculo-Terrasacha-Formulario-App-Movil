@@ -4,8 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 
 import 'package:capturador_datos_offline/models/Project.dart';
+import 'package:capturador_datos_offline/models/plan_campo_borrador.dart';
 import 'package:capturador_datos_offline/utils/inicioTareaOperador.dart';
+import 'package:capturador_datos_offline/utils/servicio_salida.dart';
+import 'package:capturador_datos_offline/screens/CreacionPlanScreen.dart';
+import 'package:capturador_datos_offline/screens/DetalleSalidaScreen.dart';
 import 'package:capturador_datos_offline/screens/EquiposScreen.dart';
+import 'package:capturador_datos_offline/main.dart';
 
 class ProyectosMenuScreen extends StatefulWidget {
   const ProyectosMenuScreen({super.key});
@@ -16,7 +21,10 @@ class ProyectosMenuScreen extends StatefulWidget {
 
 class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   List<Project> proyectos = [];
+  List<SalidaCampo> salidas = [];
+  final Map<String, int> _progresoSalidas = {};
   bool cargando = true;
+  bool cargandoSalidas = false;
 
   final Color primaryColor = const Color(0xFF4A5C24);
   final Color backgroundColor = const Color(0xFFF7F8F6);
@@ -44,6 +52,29 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   void initState() {
     super.initState();
     _cargarProyectos();
+    _cargarSalidas();
+  }
+
+  Future<void> _cargarSalidas() async {
+    setState(() => cargandoSalidas = true);
+    try {
+      final lista = await ServicioSalida.listar();
+      final progresos = <String, int>{};
+      for (final s in lista) {
+        progresos[s.id] = await ServicioSalida.progresoSalida(s.id);
+      }
+      if (!mounted) return;
+      setState(() {
+        salidas = lista;
+        _progresoSalidas
+          ..clear()
+          ..addAll(progresos);
+        cargandoSalidas = false;
+      });
+    } catch (e) {
+      debugPrint('Error cargando salidas: $e');
+      if (mounted) setState(() => cargandoSalidas = false);
+    }
   }
 
   @override
@@ -225,57 +256,76 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
           ]),
         ),
         Expanded(
-          child: cargando
-              ? Center(child: CircularProgressIndicator(color: primaryColor))
-              : RefreshIndicator(
-            onRefresh: _cargarProyectos,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Proyectos',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
+          child: _selectedTab == 'Salidas'
+              ? _buildContenidoSalidas()
+              : cargando
+                  ? Center(child: CircularProgressIndicator(color: primaryColor))
+                  : RefreshIndicator(
+                      onRefresh: _cargarProyectos,
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Proyectos',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryColor,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _cargarProyectos,
+                                child: Text(
+                                  'Ver todos',
+                                  style: TextStyle(
+                                    color: primaryColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          if (proyectos.isEmpty)
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.all(40.0),
+                                child: Text('No hay proyectos activos'),
+                              ),
+                            )
+                          else
+                            ...proyectos.map((p) => _buildProjectCard(p)),
+                          const SizedBox(height: 80),
+                        ],
                       ),
                     ),
-                    TextButton(
-                      onPressed: _cargarProyectos,
-                      child: Text(
-                        'Ver todos',
-                        style: TextStyle(
-                          color: primaryColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (proyectos.isEmpty)
-                  const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(40.0),
-                      child: Text('No hay proyectos activos'),
-                    ),
-                  )
-                else
-                  ...proyectos.map((p) => _buildProjectCard(p)),
-                const SizedBox(height: 80),
-              ],
-            ),
-          ),
         ),
       ]),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: primaryColor,
-        onPressed: () => _crearProyecto(context),
-        child: const Icon(Icons.add, color: Colors.white, size: 30),
-      ),
+      floatingActionButton: _selectedTab == 'Salidas' &&
+              hasRole('lider_proyecto')
+          ? FloatingActionButton(
+              backgroundColor: primaryColor,
+              onPressed: () async {
+                final creada = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const CreacionPlanScreen(),
+                  ),
+                );
+                if (creada == true) _cargarSalidas();
+              },
+              child: const Icon(Icons.add, color: Colors.white, size: 30),
+            )
+          : _selectedTab == 'Proyectos'
+              ? FloatingActionButton(
+                  backgroundColor: primaryColor,
+                  onPressed: () => _crearProyecto(context),
+                  child: const Icon(Icons.add, color: Colors.white, size: 30),
+                )
+              : null,
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _bottomIndex,
@@ -307,12 +357,164 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
     );
   }
 
+  Widget _buildContenidoSalidas() {
+    if (cargandoSalidas) {
+      return Center(child: CircularProgressIndicator(color: primaryColor));
+    }
+
+    return RefreshIndicator(
+      onRefresh: _cargarSalidas,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Salidas',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
+                ),
+              ),
+              TextButton(
+                onPressed: _cargarSalidas,
+                child: Text(
+                  'Actualizar',
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (salidas.isEmpty)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(40),
+                child: Column(
+                  children: [
+                    Icon(Icons.assignment_outlined,
+                        size: 48, color: primaryColor.withOpacity(0.4)),
+                    const SizedBox(height: 12),
+                    const Text('No hay salidas registradas'),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Crea un plan de campo desde el botón +',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            ...salidas.map(_buildSalidaCard),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSalidaCard(SalidaCampo salida) {
+    final progreso = _progresoSalidas[salida.id] ?? 0;
+
+    return GestureDetector(
+      onTap: () async {
+        final actualizado = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => DetalleSalidaScreen(salidaId: salida.id),
+          ),
+        );
+        if (actualizado == true) _cargarSalidas();
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    salida.nombre,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    salida.estado.etiqueta,
+                    style: TextStyle(
+                      color: primaryColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (salida.ubicacionRuta != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                salida.ubicacionRuta!,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progreso / 100,
+                minHeight: 6,
+                backgroundColor: Colors.grey[200],
+                color: primaryColor,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '$progreso% completado',
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTab(String label, {bool active = false}) {
     return Expanded(
       child: GestureDetector(
         onTap: () {
           setState(() => _selectedTab = label);
-          if (label == 'Equipos') {
+          if (label == 'Salidas') {
+            _cargarSalidas();
+          } else if (label == 'Equipos') {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const EquiposScreen()),

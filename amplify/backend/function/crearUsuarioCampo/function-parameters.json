@@ -1,0 +1,8 @@
+{
+  "lambdaLayers": [],
+  "permissions": {},
+  "environmentVariables": {
+    "SES_FROM_EMAIL": "noreply@terrassacha.com"
+  },
+  "secretNames": []
+}

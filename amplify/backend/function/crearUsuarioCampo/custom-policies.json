@@ -1,0 +1,22 @@
+[
+  {
+    "Action": [
+      "cognito-idp:AdminCreateUser",
+      "cognito-idp:AdminGetUser",
+      "cognito-idp:AdminDeleteUser",
+      "cognito-idp:ListUsers"
+    ],
+    "Resource": [
+      "arn:aws:cognito-idp:us-east-1:879381245127:userpool/us-east-1_chqNtZEAP"
+    ]
+  },
+  {
+    "Action": [
+      "ses:SendEmail",
+      "ses:SendRawEmail"
+    ],
+    "Resource": [
+      "*"
+    ]
+  }
+]
