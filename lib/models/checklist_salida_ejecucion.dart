@@ -1,4 +1,4 @@
-/// Evidencia fotográfica del checklist de salida (global por salida).
+/// Evidencia fotográfica del checklist de salida de una persona del equipo.
 class EvidenciaChecklistSalida {
   final String id;
   final String rutaLocal;

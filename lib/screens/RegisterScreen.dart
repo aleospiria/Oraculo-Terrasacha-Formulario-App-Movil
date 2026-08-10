@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../utils/servicioAutenticacion.dart';
 import '../utils/estado_verificacion.dart';
+import '../theme.dart';
+import '../widgets/terrasacha_logo.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -19,8 +21,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _error;
   String _rolSeleccionado = 'lider_cuadrilla';
 
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
 
   @override
   void dispose() {
@@ -83,20 +85,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Row(
-          children: const [
-            Icon(Icons.park, color: Colors.white, size: 28),
-            SizedBox(width: 8),
-            Text(
-              'Terrasacha',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-          ],
-        ),
+        title: const TerrasachaLogo.appBar(color: Colors.white),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -412,5 +401,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ),
       ),
     );
+
   }
 }

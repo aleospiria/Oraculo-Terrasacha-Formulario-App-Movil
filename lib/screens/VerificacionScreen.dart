@@ -1,7 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../utils/servicioAutenticacion.dart';
 import '../utils/estado_verificacion.dart';
+import '../theme.dart';
+import '../widgets/terrasacha_logo.dart';
 
 class VerificacionScreen extends StatefulWidget {
   const VerificacionScreen({super.key});
@@ -21,8 +23,8 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
   String? _error;
   String? _email;
 
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
   bool _emailCargado = false;
 
   @override
@@ -147,20 +149,7 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Row(
-          children: const [
-            Icon(Icons.park, color: Colors.white, size: 28),
-            SizedBox(width: 8),
-            Text(
-              'Terrasacha',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-          ],
-        ),
+        title: const TerrasachaLogo.appBar(color: Colors.white),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -378,5 +367,6 @@ class _VerificacionScreenState extends State<VerificacionScreen> {
         ),
       ),
     );
+
   }
 }

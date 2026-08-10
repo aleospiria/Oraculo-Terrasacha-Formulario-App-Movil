@@ -85,4 +85,16 @@ class ServicioUsuariosCampo {
       'mediciones': mediciones,
     });
   }
+
+  /// Actualiza `custom:role` en Cognito y el metadata en AppSync.
+  static Future<Map<String, dynamic>> actualizarRol({
+    required String userId,
+    required String rolCognito,
+  }) async {
+    return _post(body: {
+      'action': 'updateRole',
+      'userId': userId,
+      'rol': rolCognito,
+    });
+  }
 }

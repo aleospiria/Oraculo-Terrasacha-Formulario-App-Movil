@@ -1,11 +1,12 @@
+﻿import '../theme.dart';
 // lib/Utils/
 // .dart
 import 'package:flutter/material.dart';
 import 'package:capturador_datos_offline/screens/EjecucionRegistroScreen.dart';
 
 class InicioTareaOperador {
-  static const Color primaryColor = Color(0xFF4A5C24);
-  static const Color backgroundColor = Color(0xFFF7F8F6);
+  static const Color primaryColor = terrasachaPrimaryColor;
+  static const Color backgroundColor = terrasachaBackgroundColor;
 
   /// Llamar desde cualquier Screen:
   /// InicioTareaOperador.show(context);

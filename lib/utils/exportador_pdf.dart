@@ -1,4 +1,4 @@
-import  'dart:io';
+﻿import  'dart:io';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
@@ -184,7 +184,7 @@ class ExportadorPdf {
           style: pw.TextStyle(
             fontSize: 22,
             fontWeight: pw.FontWeight.bold,
-            color: PdfColor.fromInt(0xFF4A5C24),
+            color: PdfColor.fromInt(0xFF6E6C35),
           ),
         ),
         pw.Text(
@@ -201,7 +201,7 @@ class ExportadorPdf {
       children: [
         pw.SizedBox(height: 14),
         pw.Container(
-          color: PdfColor.fromInt(0xFF4A5C24),
+          color: PdfColor.fromInt(0xFF6E6C35),
           padding: pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: pw.Text(
             titulo,

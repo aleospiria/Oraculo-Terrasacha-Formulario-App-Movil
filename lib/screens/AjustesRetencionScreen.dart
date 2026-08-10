@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/plan_campo_borrador.dart';
 import '../utils/servicio_configuracion_retencion.dart';
+import '../theme.dart';
 
 /// Pantalla de ajustes para el tiempo de caducidad (retención) de datos
 /// en el dispositivo. El valor es global y por defecto es de 30 días.
@@ -14,9 +15,9 @@ class AjustesRetencionScreen extends StatefulWidget {
 }
 
 class _AjustesRetencionScreenState extends State<AjustesRetencionScreen> {
-  static const Color primaryColor = Color(0xFF4A5C24);
-  static const Color backgroundColor = Color(0xFFF7F8F6);
-  static const Color cardColor = Color(0xFFEEF2E6);
+  static const Color primaryColor = terrasachaPrimaryColor;
+  static const Color backgroundColor = terrasachaBackgroundColor;
+  static const Color cardColor = terrasachaCardColor;
 
   late int _diasSeleccionados;
   final TextEditingController _personalizadoCtrl = TextEditingController();
@@ -281,5 +282,6 @@ class _AjustesRetencionScreenState extends State<AjustesRetencionScreen> {
         ),
       ],
     );
+
   }
 }

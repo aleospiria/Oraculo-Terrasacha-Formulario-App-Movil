@@ -1,12 +1,12 @@
+﻿import '../theme.dart';
 // lib/screens/PrediosMenuScreen.dart
-import 'dart:async';
-import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 
 import 'package:capturador_datos_offline/models/ModelProvider.dart';
 import 'package:capturador_datos_offline/models/Topology.dart';
 import 'package:capturador_datos_offline/models/Project.dart';
+import 'package:capturador_datos_offline/utils/servicio_topologia.dart';
 
 class PrediosMenuScreen extends StatefulWidget {
   const PrediosMenuScreen({super.key});
@@ -20,12 +20,13 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
   Map<String, int> _parcelasCount = {};
   bool cargando = true;
   bool _isInitialized = false;
+  String? _errorCarga;
 
-  late String proyectoId;
-  late String proyectoNombre;
+  String proyectoId = '';
+  String proyectoNombre = 'Proyecto';
 
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
 
   final TextEditingController _searchController = TextEditingController();
   String _filtro = '';
@@ -34,11 +35,26 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_isInitialized) {
-      final args =
-      ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-      proyectoId = args['proyecto_id'];
-      proyectoNombre = args['proyecto_nombre'] ?? 'Proyecto';
+      final rawArgs = ModalRoute.of(context)?.settings.arguments;
+      if (rawArgs is! Map) {
+        setState(() {
+          cargando = false;
+          _errorCarga = 'No se recibieron datos del proyecto';
+        });
+        _isInitialized = true;
+        return;
+      }
+      final args = Map<String, dynamic>.from(rawArgs);
+      proyectoId = args['proyecto_id'] as String? ?? '';
+      proyectoNombre = args['proyecto_nombre'] as String? ?? 'Proyecto';
       _isInitialized = true;
+      if (proyectoId.isEmpty) {
+        setState(() {
+          cargando = false;
+          _errorCarga = 'ID de proyecto inválido';
+        });
+        return;
+      }
       _cargarPredios();
     }
   }
@@ -49,60 +65,49 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
     super.dispose();
   }
 
-  /// Carga con polling - espera a que DataStore tenga datos
+  /// Carga predios vía API (con timeout) y fallback DataStore.
+  /// Evita el polling infinito / colgado de DataStore.query.
   Future<void> _cargarPredios() async {
     if (!mounted) return;
-    setState(() => cargando = true);
+    setState(() {
+      cargando = true;
+      _errorCarga = null;
+    });
 
     try {
-      debugPrint('🔍 ========== INICIO CARGA PREDIOS ==========');
-      debugPrint('🔍 Proyecto ID: $proyectoId');
+      debugPrint('🔍 Cargando predios del proyecto $proyectoId');
 
-      // Polling: intentar hasta 10 veces con 1s de espera
-      List<Topology> todosTopologiesList = [];
-      for (int i = 0; i < 10; i++) {
-        todosTopologiesList = await Amplify.DataStore.query(Topology.classType);
-        if (todosTopologiesList.isNotEmpty) {
-          debugPrint('✅ Datos obtenidos en intento ${i + 1}');
-          break;
-        }
-        debugPrint('⏳ Esperando datos... intento ${i + 1}/10');
-        await Future.delayed(const Duration(seconds: 1));
-      }
+      final todas = await ServicioTopologia.cargarTopologiasPorProyecto(
+        proyectoId,
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => <Topology>[],
+      );
 
-      debugPrint('📊 Topology en SQLite: ${todosTopologiesList.length} registros');
+      final roots = ServicioTopologia.raicesPorProyecto(todas, proyectoId);
 
-      // Filtrar por proyecto en memoria
-      final roots = todosTopologiesList
-          .where((t) => t.project?.id == proyectoId && t.topologyParent == null)
-          .toList();
-
-      debugPrint('🌳 Predios raíz encontrados: ${roots.length}');
-      for (final p in roots) {
-        debugPrint('  → ${p.name} (${p.id}) | polygon: ${p.polygon != null ? "tiene" : "sin"}');
-      }
-
-      // Calcular cantidad de parcelas por predio
       final Map<String, int> counts = {};
       for (final predio in roots) {
-        final hijos = todosTopologiesList
-            .where((t) => t.topologyParent?.id == predio.id)
-            .length;
-        counts[predio.id] = hijos;
+        counts[predio.id] = ServicioTopologia.hijosDe(todas, predio.id).length;
       }
 
-      debugPrint('📦 Parcelas por predio: $counts');
-      debugPrint('🔍 ========== FIN CARGA PREDIOS ==========');
+      debugPrint('🌳 Predios raíz: ${roots.length}');
 
       if (!mounted) return;
       setState(() {
         predios = roots;
         _parcelasCount = counts;
         cargando = false;
+        _errorCarga = null;
       });
     } catch (e) {
       debugPrint('❌ Error cargando predios: $e');
-      if (mounted) setState(() => cargando = false);
+      if (mounted) {
+        setState(() {
+          cargando = false;
+          _errorCarga = 'No se pudieron cargar los predios';
+        });
+      }
     }
   }
 
@@ -119,6 +124,8 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
+              textCapitalization: terrasachaCapitalizacionTexto,
+              inputFormatters: terrasachaFormattersTexto(),
               controller: nombreCtrl,
               autofocus: true,
               decoration: const InputDecoration(
@@ -128,6 +135,8 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
             ),
             const SizedBox(height: 8),
             TextField(
+              textCapitalization: terrasachaCapitalizacionTexto,
+              inputFormatters: terrasachaFormattersTexto(),
               controller: stringCodeCtrl,
               decoration: const InputDecoration(
                 labelText: 'Código texto',
@@ -249,7 +258,7 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
     final q = _filtro.toLowerCase();
     return predios
         .where((p) =>
-    (p.name ?? '').toLowerCase().contains(q) ||
+    p.name.toLowerCase().contains(q) ||
         (p.string_code ?? '').toLowerCase().contains(q) ||
         (p.number_code ?? '').toLowerCase().contains(q))
         .toList();
@@ -313,6 +322,8 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: TextField(
+                textCapitalization: terrasachaCapitalizacionTexto,
+                inputFormatters: terrasachaFormattersTexto(),
                 controller: _searchController,
                 onChanged: (v) => setState(() => _filtro = v.trim()),
                 decoration: InputDecoration(
@@ -374,7 +385,29 @@ class _PrediosMenuScreenState extends State<PrediosMenuScreen> {
             Expanded(
               child: cargando
                   ? Center(
-                  child: CircularProgressIndicator(color: primaryColor))
+                      child: CircularProgressIndicator(color: primaryColor))
+                  : _errorCarga != null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _errorCarga!,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.grey.shade600),
+                                ),
+                                const SizedBox(height: 16),
+                                ElevatedButton.icon(
+                                  onPressed: _cargarPredios,
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Reintentar'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
                   : filtrados.isEmpty
                   ? Center(
                 child: Text(

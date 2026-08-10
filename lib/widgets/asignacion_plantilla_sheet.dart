@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../models/plan_campo_borrador.dart';
 import '../utils/roles_campo.dart';
 import '../utils/servicio_plantillas.dart';
+import '../utils/servicio_salida.dart';
 
 /// Tupla de responsable para el sheet de asignación.
 typedef ResponsablePlantillaSheet = ({
@@ -14,7 +16,12 @@ class AsignacionPlantillaSheet extends StatefulWidget {
   final Color primaryColor;
   final List<PlantillaConFeatures> plantillas;
   final List<ResponsablePlantillaSheet> responsables;
-  final List<DateTime> fechasSubArea;
+  final List<DateTime> diasSalida;
+  final List<AsignacionPlantillaPlan> asignacionesExistentes;
+  final EjecucionSalida? ejecucion;
+  final String? excluirAsignacionId;
+  final bool requiereDia;
+  final DateTime? diaInicial;
   final AsignacionPlantillaSheetDatos? datosIniciales;
 
   const AsignacionPlantillaSheet({
@@ -22,7 +29,12 @@ class AsignacionPlantillaSheet extends StatefulWidget {
     required this.primaryColor,
     required this.plantillas,
     required this.responsables,
-    required this.fechasSubArea,
+    this.diasSalida = const [],
+    this.asignacionesExistentes = const [],
+    this.ejecucion,
+    this.excluirAsignacionId,
+    this.requiereDia = false,
+    this.diaInicial,
     this.datosIniciales,
   });
 
@@ -58,7 +70,12 @@ class AsignacionPlantillaSheet extends StatefulWidget {
     required Color primaryColor,
     required List<PlantillaConFeatures> plantillas,
     required List<ResponsablePlantillaSheet> responsables,
-    required List<DateTime> fechasSubArea,
+    List<DateTime> diasSalida = const [],
+    List<AsignacionPlantillaPlan> asignacionesExistentes = const [],
+    EjecucionSalida? ejecucion,
+    String? excluirAsignacionId,
+    bool requiereDia = false,
+    DateTime? diaInicial,
     AsignacionPlantillaSheetDatos? datosIniciales,
   }) {
     return showModalBottomSheet<AsignacionPlantillaSheetDatos>(
@@ -69,7 +86,12 @@ class AsignacionPlantillaSheet extends StatefulWidget {
         primaryColor: primaryColor,
         plantillas: plantillas,
         responsables: normalizarResponsables(responsables),
-        fechasSubArea: fechasSubArea,
+        diasSalida: diasSalida,
+        asignacionesExistentes: asignacionesExistentes,
+        ejecucion: ejecucion,
+        excluirAsignacionId: excluirAsignacionId,
+        requiereDia: requiereDia,
+        diaInicial: diaInicial,
         datosIniciales: datosIniciales,
       ),
     );
@@ -108,6 +130,23 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
   int? _responsableIndice;
   DateTime? _fechaSubArea;
 
+  Map<String, FeatureAsignadaPrevio> get _featuresBloqueadas {
+    return ServicioSalida.featuresNoReasignables(
+      asignaciones: widget.asignacionesExistentes,
+      ejecucion: widget.ejecucion,
+      excluirAsignacionId: widget.excluirAsignacionId,
+    );
+  }
+
+  Map<String, FeatureAsignadaPrevio> get _featuresReasignables {
+    return ServicioSalida.featuresYaAsignadas(
+      asignaciones: widget.asignacionesExistentes,
+      ejecucion: widget.ejecucion,
+      excluirAsignacionId: widget.excluirAsignacionId,
+      soloCompletadas: false,
+    )..removeWhere((_, v) => v.completada);
+  }
+
   void _sincronizarResponsableSeleccionado() {
     final lista = widget.responsables;
     if (lista.isEmpty) {
@@ -141,6 +180,30 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
     _responsableIndice = 0;
   }
 
+  void _inicializarDia() {
+    if (_fechaSubArea != null) return;
+
+    final dias = widget.diasSalida;
+    if (dias.isEmpty) return;
+
+    final diaInicial = widget.diaInicial;
+    if (diaInicial != null) {
+      final diaNormalizado = ServicioSalida.normalizarFecha(diaInicial);
+      if (dias.contains(diaNormalizado)) {
+        _fechaSubArea = diaNormalizado;
+        return;
+      }
+    }
+
+    if (dias.length == 1) {
+      _fechaSubArea = dias.first;
+      return;
+    }
+
+    final hoy = ServicioSalida.normalizarFecha(DateTime.now());
+    _fechaSubArea = dias.contains(hoy) ? hoy : dias.first;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -157,6 +220,7 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
     } else if (widget.plantillas.isNotEmpty) {
       _plantillaSeleccionada = widget.plantillas.first;
     }
+    _inicializarDia();
     _sincronizarResponsableSeleccionado();
   }
 
@@ -168,6 +232,7 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
   }
 
   void _toggleFeature(String featureId) {
+    if (_featuresBloqueadas.containsKey(featureId)) return;
     setState(() {
       if (_featuresSeleccionados.contains(featureId)) {
         _featuresSeleccionados.remove(featureId);
@@ -177,10 +242,27 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
     });
   }
 
+  void _cambiarDia(DateTime? fecha) {
+    setState(() {
+      _fechaSubArea = fecha;
+      final bloqueadas = _featuresBloqueadas;
+      _featuresSeleccionados.removeWhere(bloqueadas.containsKey);
+    });
+  }
+
   String _formatFecha(DateTime fecha) {
     final d = fecha.day.toString().padLeft(2, '0');
     final m = fecha.month.toString().padLeft(2, '0');
     return '$d/$m/${fecha.year}';
+  }
+
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   void _guardar() {
@@ -189,6 +271,24 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
     if (plantilla == null) return;
     if (indice == null) return;
     if (_featuresSeleccionados.isEmpty) return;
+
+    if (widget.requiereDia && _fechaSubArea == null) {
+      _mostrarError('Selecciona el día de trabajo para esta asignación.');
+      return;
+    }
+
+    final bloqueadas = _featuresBloqueadas;
+    final conflictos = _featuresSeleccionados
+        .where(bloqueadas.containsKey)
+        .map((id) => bloqueadas[id]!.featureNombre)
+        .toList();
+    if (conflictos.isNotEmpty) {
+      _mostrarError(
+        'Estas mediciones ya están completadas y no se pueden reasignar: '
+        '${conflictos.join(', ')}.',
+      );
+      return;
+    }
 
     final responsable = widget.responsables[indice];
 
@@ -211,9 +311,19 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
     );
   }
 
+  bool get _puedeGuardar {
+    if (_plantillaSeleccionada == null) return false;
+    if (_responsableIndice == null) return false;
+    if (_featuresSeleccionados.isEmpty) return false;
+    if (widget.requiereDia && _fechaSubArea == null) return false;
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final bloqueadas = _featuresBloqueadas;
+    final reasignables = _featuresReasignables;
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -265,6 +375,22 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (widget.diasSalida.length > 1) ...[
+                      const Text(
+                        'Día de trabajo',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.requiereDia
+                            ? 'Cada asignación corresponde a un día de la salida.'
+                            : 'Opcional: vincula la asignación a un día concreto.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildDropdownFecha(),
+                      const SizedBox(height: 20),
+                    ],
                     const Text(
                       'Plantilla',
                       style: TextStyle(fontWeight: FontWeight.w600),
@@ -276,6 +402,17 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
                       'Mediciones / features',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
+                    if (bloqueadas.isNotEmpty || reasignables.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        bloqueadas.isNotEmpty
+                            ? 'Las mediciones completadas no se pueden reasignar. '
+                                'Las pendientes sí: al guardar se mueven al nuevo responsable.'
+                            : 'Si eliges una medición ya asignada y pendiente, '
+                                'se reasignará al nuevo responsable.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
                     const SizedBox(height: 8),
                     if (_plantillaSeleccionada == null ||
                         _plantillaSeleccionada!.features.isEmpty)
@@ -287,21 +424,54 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
                       ..._plantillaSeleccionada!.features.map((feature) {
                         final activo =
                             _featuresSeleccionados.contains(feature.id);
+                        final previoBloqueado = bloqueadas[feature.id];
+                        final previoReasignable = reasignables[feature.id];
+                        final bloqueada = previoBloqueado != null;
+
                         return CheckboxListTile(
                           value: activo,
                           activeColor: widget.primaryColor,
                           contentPadding: EdgeInsets.zero,
-                          title: Text(feature.nombre),
-                          subtitle: feature.featureGroup != null
+                          title: Text(
+                            feature.nombre,
+                            style: bloqueada
+                                ? TextStyle(color: Colors.grey[500])
+                                : null,
+                          ),
+                          subtitle: bloqueada
                               ? Text(
-                                  feature.featureGroup!,
+                                  'Completada'
+                                  '${previoBloqueado.operadorNombre.isNotEmpty ? ' por ${previoBloqueado.operadorNombre}' : ''}'
+                                  ' · no se puede reasignar',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.grey[600],
+                                    color: Colors.orange.shade800,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 )
-                              : null,
-                          onChanged: (_) => _toggleFeature(feature.id),
+                              : previoReasignable != null
+                                  ? Text(
+                                      'Asignada a ${previoReasignable.operadorNombre.isNotEmpty ? previoReasignable.operadorNombre : 'otro usuario'}'
+                                      '${previoReasignable.fecha != null ? ' · ${_formatFecha(previoReasignable.fecha!)}' : ''}'
+                                      ' · se reasignará al guardar',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.blueGrey.shade700,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    )
+                                  : feature.featureGroup != null
+                                      ? Text(
+                                          feature.featureGroup!,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        )
+                                      : null,
+                          onChanged: bloqueada
+                              ? null
+                              : (_) => _toggleFeature(feature.id),
                         );
                       }),
                     const SizedBox(height: 20),
@@ -316,15 +486,6 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
                     ),
                     const SizedBox(height: 8),
                     _buildDropdownResponsable(),
-                    if (widget.fechasSubArea.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      const Text(
-                        'Día de trabajo (opcional)',
-                        style: TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 8),
-                      _buildDropdownFecha(),
-                    ],
                   ],
                 ),
               ),
@@ -342,11 +503,7 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: _plantillaSeleccionada != null &&
-                          _responsableIndice != null &&
-                          _featuresSeleccionados.isNotEmpty
-                      ? _guardar
-                      : null,
+                  onPressed: _puedeGuardar ? _guardar : null,
                   child: const Text(
                     'Guardar asignación',
                     style: TextStyle(fontWeight: FontWeight.bold),
@@ -436,6 +593,10 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
   }
 
   Widget _buildDropdownFecha() {
+    final dias = widget.diasSalida;
+    final fechaValida =
+        _fechaSubArea != null && dias.contains(_fechaSubArea);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
@@ -443,23 +604,23 @@ class _AsignacionPlantillaSheetState extends State<AsignacionPlantillaSheet> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: DropdownButtonHideUnderline(
-        child: DropdownButton<DateTime?>(
+        child: DropdownButton<DateTime>(
           isExpanded: true,
-          value: _fechaSubArea,
-          hint: const Text('Sin día específico'),
-          items: [
-            const DropdownMenuItem<DateTime?>(
-              value: null,
-              child: Text('Sin día específico'),
-            ),
-            ...widget.fechasSubArea.map(
-              (fecha) => DropdownMenuItem<DateTime?>(
-                value: fecha,
-                child: Text(_formatFecha(fecha)),
-              ),
-            ),
-          ],
-          onChanged: (v) => setState(() => _fechaSubArea = v),
+          value: fechaValida ? _fechaSubArea : null,
+          hint: Text(
+            widget.requiereDia
+                ? 'Seleccionar día'
+                : 'Sin día específico',
+          ),
+          items: dias
+              .map(
+                (fecha) => DropdownMenuItem<DateTime>(
+                  value: fecha,
+                  child: Text(_formatFecha(fecha)),
+                ),
+              )
+              .toList(),
+          onChanged: (v) => _cambiarDia(v),
         ),
       ),
     );

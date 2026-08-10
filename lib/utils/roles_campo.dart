@@ -33,6 +33,12 @@ class RolesCampo {
     return esOperador(rol) || esLiderCuadrilla(rol) || esLiderProyecto(rol);
   }
 
+  /// Roles que pueden crear/editar plantillas y sus features.
+  static bool puedeGestionarPlantillas(String? rol) {
+    if (rol == null || rol.trim().isEmpty) return false;
+    return esLiderProyecto(rol) || esLiderCuadrilla(rol);
+  }
+
   static String etiquetaDesdeCognito(String? rolCognito) {
     switch (rolCognito?.toLowerCase().trim()) {
       case 'lider_cuadrilla':
@@ -53,11 +59,25 @@ class RolesCampo {
     }
   }
 
+  /// Slug Cognito desde etiqueta UI del plan.
+  static String cognitoDesdeEtiqueta(String rol) {
+    if (esLiderCuadrilla(rol)) return 'lider_cuadrilla';
+    return 'operador';
+  }
+
+  /// Opciones de rol al armar el equipo del plan de campo.
+  static const List<String> rolesEquipoPlan = [
+    'Operador',
+    'Jefe de cuadrilla',
+  ];
+
   /// Etiqueta UI para dropdowns de rol en creación de plan.
+  /// Siempre devuelve un valor de [rolesEquipoPlan].
   static String etiquetaParaDropdown(String rol) {
     if (esLiderCuadrilla(rol)) return 'Jefe de cuadrilla';
     if (esOperador(rol)) return 'Operador';
-    return rol.trim();
+    // Cualquier otro rol de campo se trata como operador en el plan.
+    return 'Operador';
   }
 
   static bool _esSlugRol(String value) {

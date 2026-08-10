@@ -48,6 +48,11 @@ class ServicioAccidentes {
     return reportes;
   }
 
+  Future<List<ReporteAccidente>> listarPorSalida(String salidaId) async {
+    final todos = await listar();
+    return todos.where((r) => r.salidaId == salidaId).toList();
+  }
+
   Future<ReporteAccidente?> obtener(String id) async {
     final file = File(await _rutaArchivo(id));
     if (!await file.exists()) return null;

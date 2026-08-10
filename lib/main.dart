@@ -1,8 +1,8 @@
-// main.dart
+﻿// main.dart
 import 'dart:async';
 import 'package:capturador_datos_offline/screens/PanelControlScreen.dart';
 import 'package:capturador_datos_offline/screens/PrediosMenuScreen.dart';
-import 'package:capturador_datos_offline/screens/ReportarIncidenciaScreen.dart';
+import 'package:capturador_datos_offline/screens/IncidenciasSalidasScreen.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_api/amplify_api.dart';
@@ -11,13 +11,11 @@ import 'models/ModelProvider.dart';
 import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 import 'package:capturador_datos_offline/screens/CapturaDatosScreen.dart';
 import 'package:capturador_datos_offline/screens/ParcelasMenuScreen.dart';
-import 'package:capturador_datos_offline/screens/ProyectosMenuScreen.dart';
 import 'package:capturador_datos_offline/screens/TreesMenuScreen.dart';
 import 'package:capturador_datos_offline/screens/SincronizacionScreen.dart';
 import 'package:capturador_datos_offline/screens/RevisionScreen.dart';
 import 'theme.dart';
 import 'amplifyconfiguration.dart';
-import 'package:capturador_datos_offline/screens/RegistroIncidenciaScreen.dart';
 import 'package:capturador_datos_offline/screens/LoginScreen.dart';
 import 'package:capturador_datos_offline/screens/RegisterScreen.dart';
 import 'package:capturador_datos_offline/screens/VerificacionScreen.dart';
@@ -151,9 +149,9 @@ class _HomeRouterState extends State<_HomeRouter> {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      backgroundColor: Color(0xFFF7F8F6),
+      backgroundColor: terrasachaBackgroundColor,
       body: Center(
-        child: CircularProgressIndicator(color: Color(0xFF4A5C24)),
+        child: CircularProgressIndicator(color: terrasachaPrimaryColor),
       ),
     );
   }
@@ -242,9 +240,9 @@ class _CapturadorAppState extends State<CapturadorApp> {
       theme: terrasachaTheme,
       home: _isChecking
           ? const Scaffold(
-              backgroundColor: Color(0xFFF7F8F6),
+              backgroundColor: terrasachaBackgroundColor,
               body: Center(
-                child: CircularProgressIndicator(color: Color(0xFF4A5C24)),
+                child: CircularProgressIndicator(color: terrasachaPrimaryColor),
               ),
             )
           : _HomeRouter(initialRoute: _initialRoute),
@@ -255,7 +253,7 @@ class _CapturadorAppState extends State<CapturadorApp> {
         '/home':                (context) => const PanelControlScreen(),
         '/proyectos':           (context) => const RoleGuard(
           allowedRoles: ['lider_proyecto', 'lider_cuadrilla'],
-          child: ProyectosMenuScreen(),
+          child: PanelControlScreen(initialTabIndex: 1),
         ),
         '/predios':             (context) => const RoleGuard(
           allowedRoles: ['lider_proyecto', 'lider_cuadrilla'],
@@ -279,10 +277,7 @@ class _CapturadorAppState extends State<CapturadorApp> {
           child: RevisionScreen(),
         ),
         '/registros':           (context) => const CapturaDatosScreen(),
-        '/incidencias':         (context) => const RegistroIncidenciaScreen(),
-        '/reportar-incidencia': (context) => ReportarIncidenciaScreen(
-          reporteId: ModalRoute.of(context)?.settings.arguments as String?,
-        ),
+        '/incidencias':         (context) => const IncidenciasSalidasScreen(),
       },
     );
   }

@@ -3,6 +3,8 @@ const {
   AdminCreateUserCommand,
   AdminGetUserCommand,
   AdminDeleteUserCommand,
+  AdminUpdateUserAttributesCommand,
+  ListUsersCommand,
 } = require('@aws-sdk/client-cognito-identity-provider');
 const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
 const { CognitoJwtVerifier } = require('aws-jwt-verify');
@@ -152,6 +154,77 @@ const createUserRecord = async ({ id, nombre, metadata }) => {
   });
 
   return data.createUser;
+};
+
+const getUserRecord = async (id) => {
+  const query = `
+    query GetUser($id: ID!) {
+      getUser(id: $id) {
+        id
+        departamento
+        municipio
+      }
+    }
+  `;
+
+  const data = await graphqlRequest(query, { id });
+  return data.getUser;
+};
+
+const updateUserRecord = async ({ id, nombre, metadata }) => {
+  const mutation = `
+    mutation UpdateUser($input: UpdateUserInput!) {
+      updateUser(input: $input) {
+        id
+        departamento
+        municipio
+      }
+    }
+  `;
+
+  const data = await graphqlRequest(mutation, {
+    input: {
+      id,
+      departamento: nombre,
+      municipio: metadata,
+    },
+  });
+
+  return data.updateUser;
+};
+
+const resolveCognitoUsername = async ({ email, userId }) => {
+  const userPoolId = process.env.USER_POOL_ID;
+
+  if (email) {
+    try {
+      const userInfo = await cognito.send(
+        new AdminGetUserCommand({
+          UserPoolId: userPoolId,
+          Username: email,
+        }),
+      );
+      return userInfo.Username || email;
+    } catch (error) {
+      console.warn('AdminGetUser por email falló, intentando por sub:', error.message);
+    }
+  }
+
+  if (userId) {
+    const listed = await cognito.send(
+      new ListUsersCommand({
+        UserPoolId: userPoolId,
+        Filter: `sub = "${userId}"`,
+        Limit: 1,
+      }),
+    );
+    const found = listed.Users?.[0];
+    if (found?.Username) {
+      return found.Username;
+    }
+  }
+
+  return null;
 };
 
 const listUserRecords = async () => {
@@ -588,6 +661,134 @@ const handleList = async () => {
   return jsonResponse(200, { exito: true, usuarios });
 };
 
+const handleUpdateRole = async (body) => {
+  const userId = (body.userId || body.id || '').trim();
+  const rol = (body.rol || '').trim();
+
+  if (!userId) {
+    return jsonResponse(400, { exito: false, error: 'userId es obligatorio' });
+  }
+
+  if (!ROLES_PERMITIDOS_CREAR.has(rol)) {
+    return jsonResponse(400, {
+      exito: false,
+      error: 'Rol inválido. Use lider_cuadrilla u operador',
+    });
+  }
+
+  let userRecord;
+  try {
+    userRecord = await getUserRecord(userId);
+  } catch (error) {
+    console.error('getUser error:', error);
+    return jsonResponse(500, {
+      exito: false,
+      error: `No se pudo leer el usuario: ${error.message}`,
+    });
+  }
+
+  if (!userRecord) {
+    return jsonResponse(404, { exito: false, error: 'Usuario no encontrado' });
+  }
+
+  const meta = parseUserMetadata(userRecord.municipio);
+  if (meta.rol === rol) {
+    return jsonResponse(200, {
+      exito: true,
+      mensaje: 'El usuario ya tiene ese rol',
+      user: {
+        id: userRecord.id,
+        nombre: userRecord.departamento || meta.email || 'Sin nombre',
+        email: meta.email,
+        rol,
+        mediciones: meta.mediciones,
+        activo: meta.activo,
+      },
+    });
+  }
+
+  const username = await resolveCognitoUsername({
+    email: meta.email,
+    userId,
+  });
+
+  if (!username) {
+    return jsonResponse(404, {
+      exito: false,
+      error: 'No se encontró el usuario en Cognito',
+    });
+  }
+
+  try {
+    await cognito.send(
+      new AdminUpdateUserAttributesCommand({
+        UserPoolId: process.env.USER_POOL_ID,
+        Username: username,
+        UserAttributes: [{ Name: 'custom:role', Value: rol }],
+      }),
+    );
+  } catch (error) {
+    console.error('AdminUpdateUserAttributes error:', error);
+    return jsonResponse(400, {
+      exito: false,
+      error: error.message || 'No se pudo actualizar el rol en Cognito',
+    });
+  }
+
+  const metadata = buildUserMetadata({
+    email: meta.email,
+    rol,
+    mediciones: meta.mediciones,
+    activo: meta.activo,
+    departamentoUbicacion: meta.departamentoUbicacion,
+    municipioUbicacion: meta.municipioUbicacion,
+  });
+
+  // parseUserMetadata no expone ubicación; preservar el JSON original si aplica
+  let metadataFinal = metadata;
+  try {
+    const original = userRecord.municipio ? JSON.parse(userRecord.municipio) : {};
+    metadataFinal = JSON.stringify({
+      ...original,
+      email: meta.email,
+      rol,
+      mediciones: meta.mediciones || [],
+      activo: meta.activo !== false,
+    });
+  } catch {
+    metadataFinal = metadata;
+  }
+
+  try {
+    userRecord = await updateUserRecord({
+      id: userId,
+      nombre: userRecord.departamento || meta.email || 'Sin nombre',
+      metadata: metadataFinal,
+    });
+  } catch (error) {
+    console.error('updateUser GraphQL error:', error);
+    return jsonResponse(500, {
+      exito: false,
+      error:
+        `Rol actualizado en Cognito, pero no en la base de datos: ${error.message}`,
+    });
+  }
+
+  const metaActualizado = parseUserMetadata(userRecord.municipio);
+  return jsonResponse(200, {
+    exito: true,
+    mensaje: 'Rol actualizado en Cognito',
+    user: {
+      id: userRecord.id,
+      nombre: userRecord.departamento || metaActualizado.email || 'Sin nombre',
+      email: metaActualizado.email,
+      rol: metaActualizado.rol || rol,
+      mediciones: metaActualizado.mediciones,
+      activo: metaActualizado.activo,
+    },
+  });
+};
+
 exports.handler = async (event) => {
   const httpMethod =
     event.requestContext?.http?.method || event.httpMethod || 'POST';
@@ -610,6 +811,11 @@ exports.handler = async (event) => {
     return jsonResponse(400, { exito: false, error: 'JSON inválido' });
   }
 
+  const auth = await assertLiderProyecto(event);
+  if (!auth.ok) {
+    return jsonResponse(auth.statusCode, { exito: false, error: auth.error });
+  }
+
   const action = body.action || 'create';
 
   try {
@@ -619,9 +825,12 @@ exports.handler = async (event) => {
     if (action === 'create') {
       return await handleCreate(body);
     }
+    if (action === 'updateRole') {
+      return await handleUpdateRole(body);
+    }
     return jsonResponse(400, {
       exito: false,
-      error: 'Acción no soportada. Use create o list',
+      error: 'Acción no soportada. Use create, list o updateRole',
     });
   } catch (error) {
     console.error('Error inesperado:', error);

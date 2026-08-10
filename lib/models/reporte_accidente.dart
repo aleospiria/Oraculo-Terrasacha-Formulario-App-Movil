@@ -4,6 +4,9 @@ import 'dart:typed_data';
 class ReporteAccidente {
   // Metadata
   final String id;
+  /// Salida de campo a la que pertenece este reporte.
+  final String salidaId;
+  final String salidaNombre;
   DateTime fechaCreacion;
   DateTime fechaModificacion;
 
@@ -92,6 +95,8 @@ class ReporteAccidente {
 
   ReporteAccidente({
     required this.id,
+    this.salidaId = '',
+    this.salidaNombre = '',
     DateTime? fechaCreacion,
     DateTime? fechaModificacion,
     this.razonSocial = '',
@@ -149,6 +154,8 @@ class ReporteAccidente {
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'salidaId': salidaId,
+    'salidaNombre': salidaNombre,
     'fechaCreacion': fechaCreacion.toIso8601String(),
     'fechaModificacion': fechaModificacion.toIso8601String(),
     'razonSocial': razonSocial,
@@ -203,6 +210,8 @@ class ReporteAccidente {
 
   factory ReporteAccidente.fromJson(Map<String, dynamic> json) => ReporteAccidente(
     id: json['id'] as String,
+    salidaId: json['salidaId'] as String? ?? '',
+    salidaNombre: json['salidaNombre'] as String? ?? '',
     fechaCreacion: DateTime.parse(json['fechaCreacion'] as String),
     fechaModificacion: DateTime.parse(json['fechaModificacion'] as String),
     razonSocial: json['razonSocial'] as String? ?? '',
@@ -257,6 +266,8 @@ class ReporteAccidente {
 
   ReporteAccidente copyWith({String? id}) => ReporteAccidente(
     id: id ?? this.id,
+    salidaId: salidaId,
+    salidaNombre: salidaNombre,
     fechaCreacion: fechaCreacion,
     fechaModificacion: DateTime.now(),
     razonSocial: razonSocial,

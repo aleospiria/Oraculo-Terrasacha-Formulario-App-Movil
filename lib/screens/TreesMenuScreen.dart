@@ -1,8 +1,9 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'dart:async';
+import '../theme.dart';
 
 class TreesMenuScreen extends StatefulWidget {
   const TreesMenuScreen({super.key});
@@ -287,8 +288,8 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primary = const Color(0xFF4A5C24);
-    final bg = const Color(0xFFF7F8F6);
+    final primary = terrasachaPrimaryColor;
+    final bg = terrasachaBackgroundColor;
 
     return Scaffold(
       backgroundColor: bg,
@@ -328,6 +329,8 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: TextField(
+                textCapitalization: terrasachaCapitalizacionTexto,
+                inputFormatters: terrasachaFormattersTexto(),
                 controller: _searchController,
                 decoration: InputDecoration(
                   hintText: "Buscar trees...",
@@ -559,7 +562,9 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
       builder: (ctx) =>
           AlertDialog(
             title: const Text('Nombre del Tree'),
-            content: TextField(controller: controller, autofocus: true),
+            content: TextField(textCapitalization: terrasachaCapitalizacionTexto,
+            inputFormatters: terrasachaFormattersTexto(),
+            controller: controller, autofocus: true),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
@@ -573,5 +578,6 @@ class _TreesMenuScreenState extends State<TreesMenuScreen> {
           ),
     );
     if (nombre != null && nombre.isNotEmpty) _crearItem(nombre);
+
   }
 }

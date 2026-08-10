@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../utils/geojson_topology_helpers.dart';
+import '../theme.dart';
 
 class MapaSubareaWidget extends StatefulWidget {
   final List<LatLng> poligonoPadre;
@@ -15,7 +16,7 @@ class MapaSubareaWidget extends StatefulWidget {
     required this.poligonoPadre,
     required this.puntosSubarea,
     required this.onPuntosChanged,
-    this.primaryColor = const Color(0xFF4A5C24),
+    this.primaryColor = terrasachaPrimaryColor,
   });
 
   @override
@@ -82,7 +83,7 @@ class _MapaSubareaWidgetState extends State<MapaSubareaWidget> {
         ClipRRect(
           borderRadius: BorderRadius.circular(12),
           child: SizedBox(
-            height: 260,
+            height: 300,
             child: FlutterMap(
               mapController: _mapController,
               options: MapOptions(
@@ -163,7 +164,7 @@ class _MapaSubareaWidgetState extends State<MapaSubareaWidget> {
           children: [
             Expanded(
               child: Text(
-                'Toca el mapa para añadir vértices (${_puntos.length}). Mínimo 3.',
+                'Toca el mapa (dentro del área azul) para añadir vértices. ${_puntos.length}/3 mínimo.',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
             ),
@@ -190,5 +191,6 @@ class _MapaSubareaWidgetState extends State<MapaSubareaWidget> {
         ),
       ],
     );
+
   }
 }

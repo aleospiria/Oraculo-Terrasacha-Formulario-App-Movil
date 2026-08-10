@@ -1,3 +1,4 @@
+﻿import '../theme.dart';
 // lib/Screens/GestionUsuariosScreen.dart
 import 'package:flutter/material.dart';
 
@@ -45,9 +46,9 @@ class GestionUsuariosScreen extends StatefulWidget {
 }
 
 class _GestionUsuariosScreenState extends State<GestionUsuariosScreen> {
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
-  final Color cardColor = const Color(0xFFEEF2E6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
+  final Color cardColor = terrasachaCardColor;
 
   final List<String> _todasLasMediciones = [
     'Humedad del suelo',
@@ -179,7 +180,7 @@ class _GestionUsuariosScreenState extends State<GestionUsuariosScreen> {
 
   Color _colorEstado(EstadoUsuario estado) =>
       estado == EstadoUsuario.activo
-          ? const Color(0xFF4A5C24)
+          ? terrasachaPrimaryColor
           : Colors.grey[500]!;
 
   String _labelEstado(EstadoUsuario estado) =>
@@ -475,10 +476,18 @@ class _GestionUsuariosScreenState extends State<GestionUsuariosScreen> {
     TextInputType tipo = TextInputType.text,
     bool habilitado = true,
   }) {
+    final esEmailONumero = tipo == TextInputType.emailAddress ||
+        tipo == TextInputType.number ||
+        tipo == TextInputType.phone;
     return TextField(
       controller: ctrl,
       keyboardType: tipo,
       enabled: habilitado,
+      textCapitalization: esEmailONumero
+          ? TextCapitalization.none
+          : terrasachaCapitalizacionTexto,
+      inputFormatters:
+          esEmailONumero ? null : terrasachaFormattersTexto(),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
@@ -497,7 +506,7 @@ class _GestionUsuariosScreenState extends State<GestionUsuariosScreen> {
           borderSide: BorderSide(color: primaryColor, width: 1.5),
         ),
         contentPadding:
-        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }
