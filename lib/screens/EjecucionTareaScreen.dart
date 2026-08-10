@@ -1,3 +1,4 @@
+import '../theme.dart';
 // lib/Screens/EjecucionTareaScreen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -227,6 +228,8 @@ class _EjecucionTareaScreenState extends State<EjecucionTareaScreen>
       TextEditingController ctrl, {
         TextInputType keyboardType = TextInputType.text,
       }) {
+    final esNumero = keyboardType == TextInputType.number ||
+        keyboardType.toString().contains('TextInputType.number');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -242,10 +245,14 @@ class _EjecucionTareaScreenState extends State<EjecucionTareaScreen>
         TextField(
           controller: ctrl,
           keyboardType: keyboardType,
+          textCapitalization: esNumero
+              ? TextCapitalization.none
+              : terrasachaCapitalizacionTexto,
+          inputFormatters: esNumero ? null : terrasachaFormattersTexto(),
           style: const TextStyle(fontSize: 14.5, color: Color(0xFF1E1E1E)),
           decoration: InputDecoration(
             contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             filled: true,
             fillColor: cardColor,
             enabledBorder: OutlineInputBorder(

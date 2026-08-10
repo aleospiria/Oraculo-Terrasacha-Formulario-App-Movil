@@ -1,10 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:audio_session/audio_session.dart';
+import '../theme.dart';
 
 // ============================================================
 //  Gestión de archivos de audio (persistencia local)
@@ -54,11 +55,25 @@ class ServicioAudios {
 class grabadorAudio extends StatefulWidget {
   final ValueChanged<String>? onGrabacionCompleta;
   final Duration duracionMaxima;
+  /// Configuración de grabación (encoder, sample rate, canales). Por
+  /// defecto AAC a 44.1kHz, el formato histórico de este widget. Pantallas
+  /// que necesiten transcripción offline (Vosk exige PCM16 mono) pueden
+  /// pasar un [RecordConfig] distinto, p. ej. WAV PCM16 a 16kHz.
+  final RecordConfig recordConfig;
+  /// Extensión de archivo acorde al [recordConfig] usado (por defecto
+  /// `.m4a`, coherente con el encoder AAC por defecto).
+  final String extensionArchivo;
 
   const grabadorAudio({
     super.key,
     this.onGrabacionCompleta,
     this.duracionMaxima = const Duration(minutes: 3),
+    this.recordConfig = const RecordConfig(
+      encoder: AudioEncoder.aacLc,
+      bitRate: 128000,
+      sampleRate: 44100,
+    ),
+    this.extensionArchivo = 'm4a',
   });
 
   @override
@@ -79,7 +94,7 @@ class _grabadorAudioState extends State<grabadorAudio> {
   Duration _duracionAudio = Duration.zero;
   Timer? _timer;
 
-  static const Color primaryColor = Color(0xFF4A5C24);
+  static const Color primaryColor = terrasachaPrimaryColor;
 
   @override
   void initState() {
@@ -128,16 +143,9 @@ class _grabadorAudioState extends State<grabadorAudio> {
 
     final dir = await getApplicationDocumentsDirectory();
     final path =
-        '${dir.path}/grabacion_${DateTime.now().millisecondsSinceEpoch}.m4a';
+        '${dir.path}/grabacion_${DateTime.now().millisecondsSinceEpoch}.${widget.extensionArchivo}';
 
-    await _recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        bitRate: 128000,
-        sampleRate: 44100,
-      ),
-      path: path,
-    );
+    await _recorder.start(widget.recordConfig, path: path);
 
     setState(() {
       _grabando = true;
@@ -472,7 +480,7 @@ class _BarraAnimadaState extends State<_BarraAnimada>
         width: 3,
         height: _anim.value,
         decoration: BoxDecoration(
-          color: const Color(0xFF4A5C24).withOpacity(0.7),
+          color: terrasachaPrimaryColor.withOpacity(0.7),
           borderRadius: BorderRadius.circular(2),
         ),
       ),
@@ -484,7 +492,7 @@ class _OndasEstaticasPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFF4A5C24).withOpacity(0.6)
+      ..color = terrasachaPrimaryColor.withOpacity(0.6)
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
 
@@ -691,5 +699,6 @@ class _AudioPlayerTileState extends State<AudioPlayerTile> {
         ),
       ),
     );
+
   }
 }

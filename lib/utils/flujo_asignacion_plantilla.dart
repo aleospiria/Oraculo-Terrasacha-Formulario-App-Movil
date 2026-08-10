@@ -58,9 +58,15 @@ class FlujoAsignacionPlantilla {
     return porClaveVisual.values.toList();
   }
 
+  /// Responsables de la salida (equipo + usuario actual).
+  ///
+  /// Por defecto no consulta el catálogo remoto (Lambda): eso bloqueaba el
+  /// sheet varios segundos. El equipo de la salida ya tiene quién puede recibir
+  /// la plantilla; el catálogo solo enriquece ids Cognito si se pide.
   static Future<List<UsuarioCampo>> responsablesParaSalida(
-    SalidaCampo salida,
-  ) async {
+    SalidaCampo salida, {
+    bool enriquecerConCatalogoRemoto = false,
+  }) async {
     final candidatos = <UsuarioCampo>[];
 
     final yo = await servicioAutenticacion.getUsuarioActual();
@@ -71,20 +77,28 @@ class FlujoAsignacionPlantilla {
         UsuarioCampo.desdeEquipo(
           nombre: miembro.nombre,
           rol: miembro.rol,
+          id: miembro.userId ?? '',
         ),
       );
     }
 
-    if (CrearUsuarioLambdaConfig.isConfigured) {
-      final resultado = await ServicioUsuariosCampo.listarUsuarios();
-      if (resultado['exito'] == true) {
-        for (final item in resultado['usuarios'] as List<dynamic>? ?? []) {
-          if (item is! Map<String, dynamic>) continue;
-          final usuario = UsuarioCampo.fromApi(item);
-          if (RolesCampo.puedeRecibirPlantilla(usuario.rolCognito)) {
-            candidatos.add(usuario);
+    if (enriquecerConCatalogoRemoto && CrearUsuarioLambdaConfig.isConfigured) {
+      try {
+        final resultado = await ServicioUsuariosCampo.listarUsuarios().timeout(
+          const Duration(seconds: 3),
+          onTimeout: () => <String, dynamic>{'exito': false},
+        );
+        if (resultado['exito'] == true) {
+          for (final item in resultado['usuarios'] as List<dynamic>? ?? []) {
+            if (item is! Map<String, dynamic>) continue;
+            final usuario = UsuarioCampo.fromApi(item);
+            if (RolesCampo.puedeRecibirPlantilla(usuario.rolCognito)) {
+              candidatos.add(usuario);
+            }
           }
         }
+      } catch (_) {
+        // Sin catálogo remoto seguimos con el equipo local.
       }
     }
 
@@ -113,6 +127,8 @@ class FlujoAsignacionPlantilla {
     required BuildContext context,
     required Color primaryColor,
     required SalidaCampo salida,
+    DateTime? diaInicial,
+    EjecucionSalida? ejecucion,
   }) async {
     if (!ServicioSalida.puedeAsignarPlantillas(salida)) {
       throw StateError(
@@ -120,24 +136,41 @@ class FlujoAsignacionPlantilla {
       );
     }
 
-    final responsables = await responsablesParaSalida(salida);
+    final resultados = await Future.wait<Object?>([
+      responsablesParaSalida(salida),
+      ServicioPlantillas.cargarPlantillasConFeatures(),
+      if (ejecucion != null)
+        Future<EjecucionSalida>.value(ejecucion)
+      else
+        ServicioSalida.obtenerEjecucion(salida.id),
+    ]);
+
+    final responsables = resultados[0]! as List<UsuarioCampo>;
+    final plantillas = resultados[1]! as List<PlantillaConFeatures>;
+    final ejecucionResuelta = resultados[2]! as EjecucionSalida;
+
     if (responsables.isEmpty) {
       throw StateError(
         'No hay responsables disponibles. Agrega operadores al equipo de la salida.',
       );
     }
-
-    final plantillas = await ServicioPlantillas.cargarPlantillasConFeatures();
     if (plantillas.isEmpty) {
       throw StateError('No hay plantillas disponibles');
     }
+
+    final dias = ServicioSalida.diasSalida(salida);
+    final requiereDia = dias.length > 1;
 
     final datos = await AsignacionPlantillaSheet.mostrar(
       context,
       primaryColor: primaryColor,
       plantillas: plantillas,
       responsables: responsables.map((u) => u.paraSheet).toList(),
-      fechasSubArea: salida.subAreasPorDia.map((s) => s.fecha).toList(),
+      diasSalida: dias,
+      asignacionesExistentes: salida.asignacionesPlantillas,
+      ejecucion: ejecucionResuelta,
+      requiereDia: requiereDia,
+      diaInicial: diaInicial,
     );
 
     if (datos == null) return null;

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,19 +10,27 @@ import '../utils/servicio_accidentes.dart';
 import '../utils/servicio_audios.dart';
 import '../utils/servicio_coordenadas.dart';
 import 'FirmaScreen.dart';
+import '../theme.dart';
 
 class ReportarIncidenciaScreen extends StatefulWidget {
+  final String salidaId;
+  final String salidaNombre;
   final String? reporteId;
 
-  const ReportarIncidenciaScreen({super.key, this.reporteId});
+  const ReportarIncidenciaScreen({
+    super.key,
+    required this.salidaId,
+    required this.salidaNombre,
+    this.reporteId,
+  });
 
   @override
   State<ReportarIncidenciaScreen> createState() => _ReportarIncidenciaScreenState();
 }
 
 class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
   final ServicioAccidentes _servicio = ServicioAccidentes();
 
   int _currentStep = 0;
@@ -68,6 +76,9 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
     setState(() {
       _r = ReporteAccidente(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
+        salidaId: widget.salidaId,
+        salidaNombre: widget.salidaNombre,
+        predioNombre: widget.salidaNombre,
       );
       _inicializado = true;
     });
@@ -261,10 +272,11 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
           ),
           const SizedBox(height: 8),
           TextField(
+            textCapitalization: terrasachaCapitalizacionTexto,
+            inputFormatters: terrasachaFormattersTexto(formatters ?? const []),
             controller: ctrl,
             keyboardType: tipo,
             maxLines: maxLines,
-            inputFormatters: formatters,
             decoration: InputDecoration(
               hintText: 'Ingresa $titulo'.toLowerCase(),
               hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
@@ -1040,8 +1052,23 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          _editando ? 'Editar Reporte' : 'Nuevo Reporte de Accidente',
+          _editando ? 'Editar reporte' : 'Nuevo reporte de accidente',
           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(28),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 10, left: 16, right: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                widget.salidaNombre,
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
         ),
       ),
       body: !_inicializado
@@ -1101,5 +1128,6 @@ class _ReportarIncidenciaScreenState extends State<ReportarIncidenciaScreen> {
               ],
             ),
     );
+
   }
 }

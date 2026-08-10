@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../models/lista_chequeo.dart';
 import '../utils/servicio_lista_chequeo.dart';
 import 'EditorListaChequeoScreen.dart';
+import '../theme.dart';
 
 class GestionListasChequeoScreen extends StatefulWidget {
   const GestionListasChequeoScreen({super.key});
@@ -13,9 +14,9 @@ class GestionListasChequeoScreen extends StatefulWidget {
 }
 
 class _GestionListasChequeoScreenState extends State<GestionListasChequeoScreen> {
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
-  final Color cardColor = const Color(0xFFEEF2E6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
+  final Color cardColor = terrasachaCardColor;
 
   List<ListaChequeo> _listas = [];
   bool _cargando = true;
@@ -435,5 +436,6 @@ class _GestionListasChequeoScreenState extends State<GestionListasChequeoScreen>
         ],
       ),
     );
+
   }
 }

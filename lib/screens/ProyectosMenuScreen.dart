@@ -1,3 +1,4 @@
+﻿import '../theme.dart';
 // lib/Screens/ProyectosMenuScreen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -10,10 +11,15 @@ import 'package:capturador_datos_offline/utils/servicio_salida.dart';
 import 'package:capturador_datos_offline/screens/CreacionPlanScreen.dart';
 import 'package:capturador_datos_offline/screens/DetalleSalidaScreen.dart';
 import 'package:capturador_datos_offline/screens/EquiposScreen.dart';
+import 'package:capturador_datos_offline/screens/MapaSalidasScreen.dart';
+import 'package:capturador_datos_offline/screens/TareasScreen.dart';
 import 'package:capturador_datos_offline/main.dart';
 
 class ProyectosMenuScreen extends StatefulWidget {
-  const ProyectosMenuScreen({super.key});
+  const ProyectosMenuScreen({super.key, this.embedded = false});
+
+  /// Cuando es true, la barra inferior la provee [PanelControlScreen].
+  final bool embedded;
 
   @override
   State<ProyectosMenuScreen> createState() => _ProyectosMenuScreenState();
@@ -26,11 +32,11 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   bool cargando = true;
   bool cargandoSalidas = false;
 
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
 
   String _selectedTab = 'Proyectos';
-  int _bottomIndex = 0;
+  int _bottomIndex = 1;
 
   static const List<String> _projectImages = [
     'https://images.unsplash.com/photo-1448375240586-882707db888b?w=800&auto=format&fit=crop',
@@ -90,17 +96,17 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
   Future<void> _cargarProyectos() async {
     try {
       debugPrint('🔍 Cargando proyectos con observeQuery...');
-      
-      // Cancelar suscripción previa si existe
+
       _subscription?.cancel();
-      
+
+      // Si observeQuery no emite a tiempo, caer a query directa.
+      var recibioSnapshot = false;
       _subscription = Amplify.DataStore.observeQuery(Project.classType).listen(
         (snapshot) {
-          debugPrint('📦 observeQuery snapshot: ${snapshot.items.length} proyectos');
-          debugPrint('   Is Synced: ${snapshot.isSynced}');
-          for (final p in snapshot.items) {
-            debugPrint('  → ${p.id} | ${p.name} | ${p.status}');
-          }
+          recibioSnapshot = true;
+          debugPrint(
+            '📦 observeQuery snapshot: ${snapshot.items.length} proyectos',
+          );
           if (!mounted) return;
           setState(() {
             proyectos = List<Project>.from(snapshot.items);
@@ -112,6 +118,24 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
           if (mounted) setState(() => cargando = false);
         },
       );
+
+      Future<void>.delayed(const Duration(seconds: 5), () async {
+        if (!mounted || recibioSnapshot) return;
+        try {
+          final items = await Amplify.DataStore.query(Project.classType)
+              .timeout(const Duration(seconds: 4), onTimeout: () => <Project>[]);
+          if (!mounted || recibioSnapshot) return;
+          setState(() {
+            proyectos = items;
+            cargando = false;
+          });
+        } catch (e) {
+          debugPrint('❌ Fallback query proyectos: $e');
+          if (mounted && !recibioSnapshot) {
+            setState(() => cargando = false);
+          }
+        }
+      });
     } catch (e) {
       debugPrint('❌ Error configurando observeQuery: $e');
       if (mounted) setState(() => cargando = false);
@@ -126,6 +150,8 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Nuevo proyecto'),
         content: TextField(
+          textCapitalization: terrasachaCapitalizacionTexto,
+          inputFormatters: terrasachaFormattersTexto(),
           controller: ctrl,
           decoration: const InputDecoration(labelText: 'Nombre'),
           autofocus: true,
@@ -252,56 +278,12 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
           child: Row(children: [
             _buildTab("Proyectos", active: _selectedTab == 'Proyectos'),
             _buildTab("Salidas", active: _selectedTab == 'Salidas'),
-            _buildTab("Equipos", active: _selectedTab == 'Equipos'),
+            if (hasRole('lider_cuadrilla'))
+              _buildTab("Equipos", active: _selectedTab == 'Equipos'),
           ]),
         ),
         Expanded(
-          child: _selectedTab == 'Salidas'
-              ? _buildContenidoSalidas()
-              : cargando
-                  ? Center(child: CircularProgressIndicator(color: primaryColor))
-                  : RefreshIndicator(
-                      onRefresh: _cargarProyectos,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Proyectos',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                  color: primaryColor,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: _cargarProyectos,
-                                child: Text(
-                                  'Ver todos',
-                                  style: TextStyle(
-                                    color: primaryColor,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          if (proyectos.isEmpty)
-                            const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(40.0),
-                                child: Text('No hay proyectos activos'),
-                              ),
-                            )
-                          else
-                            ...proyectos.map((p) => _buildProjectCard(p)),
-                          const SizedBox(height: 80),
-                        ],
-                      ),
-                    ),
+          child: _buildContenidoPrincipal(),
         ),
       ]),
       floatingActionButton: _selectedTab == 'Salidas' &&
@@ -326,34 +308,77 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
                   child: const Icon(Icons.add, color: Colors.white, size: 30),
                 )
               : null,
-      bottomNavigationBar: BottomNavigationBar(
+      bottomNavigationBar: widget.embedded ? null : _buildBottomNavigationBar(),
+    );
+  }
+
+  Widget? _buildBottomNavigationBar() {
+    return BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _bottomIndex,
         selectedItemColor: primaryColor,
         unselectedItemColor: Colors.grey,
-        selectedFontSize: 10,
-        unselectedFontSize: 10,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
+        backgroundColor: Colors.white,
+        elevation: 8,
         onTap: (index) {
-          setState(() => _bottomIndex = index);
+          if (index == _bottomIndex) return;
           if (index == 0) {
-            setState(() => _selectedTab = 'Proyectos');
-          } else if (index == 2) {
-            Navigator.pushNamed(context, '/incidencias');
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Botón $index presionado')),
-            );
+            Navigator.pop(context);
+            return;
           }
+          if (index == 1) {
+            setState(() => _bottomIndex = 1);
+            return;
+          }
+          if (index == 2) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TareasScreen()),
+            );
+            return;
+          }
+          if (index == 3) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MapaSalidasScreen()),
+            );
+            return;
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Sección Más próximamente'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Mapa'),
           BottomNavigationBarItem(
-              icon: Icon(Icons.analytics_outlined), label: 'Reportes'),
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Inicio',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined), label: 'Ajustes'),
+            icon: Icon(Icons.folder_outlined),
+            activeIcon: Icon(Icons.folder),
+            label: 'Proyectos',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.assignment_outlined),
+            activeIcon: Icon(Icons.assignment),
+            label: 'Tareas',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.map_outlined),
+            activeIcon: Icon(Icons.map),
+            label: 'Mapas',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.more_horiz),
+            label: 'Más',
+          ),
         ],
-      ),
     );
   }
 
@@ -507,6 +532,62 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
     );
   }
 
+  Widget _buildContenidoPrincipal() {
+    if (_selectedTab == 'Salidas') {
+      return _buildContenidoSalidas();
+    }
+    if (_selectedTab == 'Equipos') {
+      return const EquiposScreen(embedded: true);
+    }
+
+    if (cargando) {
+      return Center(child: CircularProgressIndicator(color: primaryColor));
+    }
+
+    return RefreshIndicator(
+      onRefresh: _cargarProyectos,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Proyectos',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: primaryColor,
+                ),
+              ),
+              TextButton(
+                onPressed: _cargarProyectos,
+                child: Text(
+                  'Ver todos',
+                  style: TextStyle(
+                    color: primaryColor,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (proyectos.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(40.0),
+                child: Text('No hay proyectos activos'),
+              ),
+            )
+          else
+            ...proyectos.map((p) => _buildProjectCard(p)),
+          const SizedBox(height: 80),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTab(String label, {bool active = false}) {
     return Expanded(
       child: GestureDetector(
@@ -514,13 +595,6 @@ class _ProyectosMenuScreenState extends State<ProyectosMenuScreen> {
           setState(() => _selectedTab = label);
           if (label == 'Salidas') {
             _cargarSalidas();
-          } else if (label == 'Equipos') {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const EquiposScreen()),
-            ).then((_) {
-              if (mounted) setState(() => _selectedTab = 'Proyectos');
-            });
           }
         },
         child: Container(

@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:signature/signature.dart';
+import '../theme.dart';
 
 class FirmaScreen extends StatefulWidget {
   const FirmaScreen({super.key});
@@ -65,7 +66,7 @@ class _FirmaScreenState extends State<FirmaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryColor = const Color(0xFF4A5C24);
+    final primaryColor = terrasachaPrimaryColor;
 
     return Scaffold(
       appBar: AppBar(
@@ -141,5 +142,6 @@ class _FirmaScreenState extends State<FirmaScreen> {
         ],
       ),
     );
+
   }
 }

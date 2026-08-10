@@ -1,3 +1,4 @@
+﻿import '../theme.dart';
 // lib/screens/ChequeoVehiculoScreen.dart
 import 'dart:io';
 
@@ -29,8 +30,8 @@ class ChequeoVehiculoScreen extends StatefulWidget {
 }
 
 class _ChequeoVehiculoScreenState extends State<ChequeoVehiculoScreen> {
-  static const Color primaryColor = Color(0xFF4A5C24);
-  static const Color backgroundColor = Color(0xFFF7F8F6);
+  static const Color primaryColor = terrasachaPrimaryColor;
+  static const Color backgroundColor = terrasachaBackgroundColor;
 
   final _picker = ImagePicker();
   final SignatureController _firmaCtrl = SignatureController(
@@ -468,6 +469,8 @@ class _ChequeoVehiculoScreenState extends State<ChequeoVehiculoScreen> {
           ),
           const SizedBox(height: 12),
           TextField(
+            textCapitalization: terrasachaCapitalizacionTexto,
+            inputFormatters: terrasachaFormattersTexto(),
             controller: _marcaCtrl,
             enabled: !_soloLectura,
             decoration: _dec('Marca / modelo (opcional)',
@@ -495,6 +498,8 @@ class _ChequeoVehiculoScreenState extends State<ChequeoVehiculoScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextField(
+            textCapitalization: terrasachaCapitalizacionTexto,
+            inputFormatters: terrasachaFormattersTexto(),
             controller: _conductorCtrl,
             enabled: !_soloLectura,
             onChanged: (_) => setState(() {}),
@@ -505,6 +510,7 @@ class _ChequeoVehiculoScreenState extends State<ChequeoVehiculoScreen> {
           TextField(
             controller: _licenciaCtrl,
             enabled: !_soloLectura,
+            textCapitalization: TextCapitalization.characters,
             onChanged: (_) => setState(() {}),
             decoration: _dec('Número de licencia', icon: Icons.badge_outlined),
           ),
@@ -643,6 +649,8 @@ class _ChequeoVehiculoScreenState extends State<ChequeoVehiculoScreen> {
     return _buildSeccion(
       titulo: 'Observaciones',
       child: TextField(
+        textCapitalization: terrasachaCapitalizacionTexto,
+        inputFormatters: terrasachaFormattersTexto(),
         controller: _obsCtrl,
         enabled: !_soloLectura,
         maxLines: 3,

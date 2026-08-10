@@ -3,6 +3,7 @@ import 'package:amplify_auth_cognito/amplify_auth_cognito.dart';
 
 import '../models/usuario_campo.dart';
 import 'roles_campo.dart';
+import 'servicio_usuarios_campo.dart';
 
 class servicioAutenticacion {
 
@@ -149,10 +150,13 @@ class servicioAutenticacion {
     }
   }
 
-  // CAMBIAR ROL (solo lider_proyecto puede llamar esto)
-  static Future<bool> cambiarRol(String username, String nuevoRol) async {
-    // TODO: Implementar llamada Lambda con permisos admin para cambiar los atributos de rol.
-    return false;
+  // CAMBIAR ROL (solo lider_proyecto; delega a Lambda crearUsuarioCampo)
+  static Future<bool> cambiarRol(String userId, String nuevoRolCognito) async {
+    final resultado = await ServicioUsuariosCampo.actualizarRol(
+      userId: userId,
+      rolCognito: nuevoRolCognito,
+    );
+    return resultado['exito'] == true;
   }
 
   // Verificar código de confirmación

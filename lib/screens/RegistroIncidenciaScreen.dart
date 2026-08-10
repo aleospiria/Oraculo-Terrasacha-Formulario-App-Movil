@@ -1,18 +1,27 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../models/reporte_accidente.dart';
+import 'ReportarIncidenciaScreen.dart';
 import '../utils/exportador_pdf.dart';
 import '../utils/servicio_accidentes.dart';
+import '../theme.dart';
 
 class RegistroIncidenciaScreen extends StatefulWidget {
-  const RegistroIncidenciaScreen({super.key});
+  final String salidaId;
+  final String salidaNombre;
+
+  const RegistroIncidenciaScreen({
+    super.key,
+    required this.salidaId,
+    required this.salidaNombre,
+  });
 
   @override
   State<RegistroIncidenciaScreen> createState() => _RegistroIncidenciaScreenState();
 }
 
 class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
   final ServicioAccidentes _servicio = ServicioAccidentes();
 
   List<ReporteAccidente> _reportes = [];
@@ -34,7 +43,7 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
 
   Future<void> _cargar() async {
     setState(() => _cargando = true);
-    final reportes = await _servicio.listar();
+    final reportes = await _servicio.listarPorSalida(widget.salidaId);
     if (!mounted) return;
     setState(() {
       _reportes = reportes;
@@ -108,7 +117,7 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
                 style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
               )
             : const Text(
-                'Registro de Accidentes',
+                'Incidencias de la salida',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
               ),
         actions: _modoSeleccion
@@ -137,9 +146,9 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
                     children: [
                       Icon(Icons.shield_outlined, size: 72, color: primaryColor.withValues(alpha: 0.3)),
                       const SizedBox(height: 16),
-                      Text('Sin reportes de accidentes', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+                      Text('Sin reportes en esta salida', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
                       const SizedBox(height: 8),
-                      Text('Toca el botón + para crear uno', style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+                      Text('Toca + para reportar una incidencia', style: TextStyle(color: Colors.grey[400], fontSize: 14)),
                     ],
                   ),
                 )
@@ -166,7 +175,15 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
           : FloatingActionButton(
               backgroundColor: primaryColor,
               onPressed: () async {
-                final resultado = await Navigator.pushNamed(context, '/reportar-incidencia');
+                final resultado = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReportarIncidenciaScreen(
+                      salidaId: widget.salidaId,
+                      salidaNombre: widget.salidaNombre,
+                    ),
+                  ),
+                );
                 if (resultado == true) _cargar();
               },
               child: const Icon(Icons.add, color: Colors.white),
@@ -356,7 +373,16 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
         if (_modoSeleccion) {
           _toggleUno(r.id);
         } else {
-          Navigator.pushNamed(context, '/reportar-incidencia', arguments: r.id).then((_) => _cargar());
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReportarIncidenciaScreen(
+                salidaId: widget.salidaId,
+                salidaNombre: widget.salidaNombre,
+                reporteId: r.id,
+              ),
+            ),
+          ).then((_) => _cargar());
         }
       },
       onLongPress: () {
@@ -467,5 +493,6 @@ class _RegistroIncidenciaScreenState extends State<RegistroIncidenciaScreen> {
         ),
       ),
     );
+
   }
 }

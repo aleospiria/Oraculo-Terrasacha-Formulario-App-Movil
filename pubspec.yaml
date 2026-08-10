@@ -35,14 +35,48 @@ dependencies:
   flutter_map: ^7.0.2
   latlong2: ^0.9.1
   http: ^1.2.2
+  # Transcripción de voz a texto 100% offline (modelo Vosk descargado una
+  # sola vez y cacheado en el dispositivo). Se usa vosk_flutter_service en
+  # vez de vosk_flutter porque este último no soporta iOS.
+  # IMPORTANTE: Android ya incluye el binario nativo vía Gradle (AAR de
+  # com.alphacephei:vosk-android), no requiere pasos adicionales. Para
+  # iOS/macOS/Linux/Windows hay que instalar el binario nativo una vez por
+  # plataforma después de "flutter pub get":
+  #   dart run vosk_flutter_service install -t ios
+  #   dart run vosk_flutter_service install -t windows
+  vosk_flutter_service: ^0.1.2
+  flutter_svg: ^2.0.17
 
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/Icons/app_icon_1024.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/Icons/app_icon_1024.png"
+  web:
+    generate: true
+    image_path: "assets/Icons/app_icon_1024.png"
+  windows:
+    generate: true
+    image_path: "assets/Icons/app_icon_1024.png"
+  macos:
+    generate: true
+    image_path: "assets/Icons/app_icon_1024.png"
 
 flutter:
+  assets:
+    - assets/Icons/logo.svg
+    # favicon = referencia del isotype; app_icon_1024.png alimenta el launcher.
+    - assets/Icons/favicon.ico
+
   fonts:
     - family: Typographica
       fonts:

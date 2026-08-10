@@ -1,162 +1,192 @@
+﻿import '../theme.dart';
 // lib/Screens/EquiposScreen.dart
 import 'package:flutter/material.dart';
-import 'package:capturador_datos_offline/screens/DetalleTareaScreen.dart';
+
+import '../main.dart';
+import '../models/usuario_campo.dart';
+import '../screens/DetalleSalidaScreen.dart';
+import '../utils/servicioAutenticacion.dart';
+import '../utils/servicio_salida.dart';
 
 class EquiposScreen extends StatefulWidget {
-  const EquiposScreen({super.key});
+  const EquiposScreen({super.key, this.embedded = false});
+
+  /// Cuando es true, se muestra dentro de [ProyectosMenuScreen] sin AppBar propio.
+  final bool embedded;
 
   @override
   State<EquiposScreen> createState() => _EquiposScreenState();
 }
 
 class _EquiposScreenState extends State<EquiposScreen> {
-  static const Color primaryColor = Color(0xFF8A8F4A);
-  static const Color backgroundColor = Color(0xFFF8F7F1);
+  static const Color primaryColor = terrasachaPrimaryColor;
+  static const Color backgroundColor = terrasachaBackgroundColor;
 
   int _tabIndex = 0;
-  int _bottomIndex = 1; // "Mis Tareas" o "Equipo", ajusta si quieres
+  bool _cargando = true;
+  List<TareaEquipoVista> _tareas = [];
 
-  final List<_EquipoTarea> _tareas = [
-    _EquipoTarea(
-      operador: 'Juan Pérez',
-      ubicacion: 'Sector A, Parcela 12',
-      estado: 'Pendiente',
-      tipoIcono: Icons.cloud_outlined,
-      accion: 'Continuar',
-    ),
-    _EquipoTarea(
-      operador: 'María Rodríguez',
-      ubicacion: 'Campo Norte, Zona 4',
-      estado: 'Pendiente',
-      tipoIcono: Icons.cloud_upload_outlined,
-      accion: 'Continuar',
-    ),
-    _EquipoTarea(
-      operador: 'Carlos Gómez',
-      ubicacion: 'Finca Santa Rosa',
-      estado: 'En progreso',
-      tipoIcono: Icons.sync,
-      accion: 'Continuar',
-    ),
-    _EquipoTarea(
-      operador: 'Ana López',
-      ubicacion: 'Lote 7, Área Experimental',
-      estado: 'Validación',
-      tipoIcono: Icons.help_outline,
-      accion: 'Revisar',
-    ),
-    _EquipoTarea(
-      operador: 'Pedro Díaz',
-      ubicacion: 'Almacén Central',
-      estado: 'Completado',
-      tipoIcono: Icons.check_circle_outline,
-      accion: '',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.embedded && !hasRole('lider_cuadrilla')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Solo el jefe de cuadrilla puede ver tareas del equipo'),
+          ),
+        );
+      });
+      return;
+    }
+    if (hasRole('lider_cuadrilla')) {
+      _cargarTareas();
+    }
+  }
 
-  List<_EquipoTarea> get _tareasFiltradas {
+  Future<void> _cargarTareas() async {
+    setState(() => _cargando = true);
+
+    final usuario = await servicioAutenticacion.getUsuarioActual();
+    if (usuario == null) {
+      if (mounted) setState(() => _cargando = false);
+      return;
+    }
+
+    final tareas =
+        await ServicioSalida.listarTareasEquipoParaLiderCuadrilla(usuario);
+
+    if (!mounted) return;
+    setState(() {
+      _tareas = tareas;
+      _cargando = false;
+    });
+  }
+
+  List<TareaEquipoVista> get _tareasFiltradas {
     switch (_tabIndex) {
       case 0:
-        return _tareas.where((e) => e.estado == 'Pendiente').toList();
+        return _tareas
+            .where((t) => t.estado == EstadoTareaSalida.pendiente)
+            .toList();
       case 1:
-        return _tareas.where((e) => e.estado == 'En progreso').toList();
+        return _tareas
+            .where(
+              (t) =>
+                  t.estado == EstadoTareaSalida.enCurso && !t.pendienteValidacion,
+            )
+            .toList();
       case 2:
-        return _tareas.where((e) => e.estado == 'Validación').toList();
+        return _tareas.where((t) => t.pendienteValidacion).toList();
       case 3:
-        return _tareas.where((e) => e.estado == 'Completado').toList();
+        return _tareas
+            .where((t) => t.estado == EstadoTareaSalida.completada)
+            .toList();
       default:
         return _tareas;
     }
   }
 
+  void _abrirSalida(TareaEquipoVista tarea) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetalleSalidaScreen(salidaId: tarea.salidaId),
+      ),
+    ).then((_) => _cargarTareas());
+  }
+
   @override
   Widget build(BuildContext context) {
+    final contenido = _buildContenido();
+
+    if (widget.embedded) return contenido;
+
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0.5,
+        backgroundColor: backgroundColor,
+        elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back_ios, color: primaryColor, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Tareas del Equipo',
           style: TextStyle(
-            color: Color(0xFF5B5B2E),
+            color: Colors.black87,
             fontWeight: FontWeight.bold,
-            fontSize: 20,
+            fontSize: 18,
           ),
         ),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.account_circle_outlined, color: Colors.black87),
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          _buildTopTabs(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildSectionTitle(_tabTitleForIndex(_tabIndex)),
-                  const SizedBox(height: 12),
-                  ..._tareasFiltradas.map((tarea) => _buildTareaCard(tarea)),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _bottomIndex,
-        selectedItemColor: primaryColor,
-        unselectedItemColor: Colors.grey.shade600,
-        selectedFontSize: 11,
-        unselectedFontSize: 11,
-        onTap: (index) {
-          setState(() => _bottomIndex = index);
-
-          if (index == 0) {
-            Navigator.pop(context);
-            return;
-          }
-
-          // Por ahora solo visual para el resto
-          if (index == 1) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Ya estás en Equipo')),
-            );
-          } else if (index == 2) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Ir a Mapa')),
-            );
-          } else if (index == 3) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Ir a Perfil')),
-            );
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Inicio'),
-          BottomNavigationBarItem(icon: Icon(Icons.groups_outlined), label: 'Mis Tareas'),
-          BottomNavigationBarItem(icon: Icon(Icons.map_outlined), label: 'Mapa'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Perfil'),
-        ],
-      ),
+      body: contenido,
     );
   }
 
+  Widget _buildContenido() {
+    return Column(
+      children: [
+        _buildTopTabs(),
+        Expanded(
+          child: _cargando
+              ? Center(child: CircularProgressIndicator(color: primaryColor))
+              : RefreshIndicator(
+                  onRefresh: _cargarTareas,
+                  color: primaryColor,
+                  child: _tareasFiltradas.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.25,
+                              child: Center(
+                                child: Text(
+                                  _mensajeVacio(),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            Text(
+                              _tabTitleForIndex(_tabIndex),
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: primaryColor,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            ..._tareasFiltradas.map(_buildTareaCard),
+                            const SizedBox(height: 24),
+                          ],
+                        ),
+                ),
+        ),
+      ],
+    );
+  }
+
+  String _mensajeVacio() {
+    if (_tareas.isEmpty) {
+      return 'No hay tareas de operadores en tus salidas activas.\n'
+          'Asigna plantillas desde el detalle de una salida.';
+    }
+    return 'No hay tareas en este estado.';
+  }
+
   Widget _buildTopTabs() {
-    final tabs = ['Pendiente', 'En progreso', 'Validación', 'Completado'];
+    const tabs = ['Pendiente', 'En progreso', 'Validación', 'Completado'];
 
     return Container(
       color: Colors.white,
@@ -165,30 +195,25 @@ class _EquiposScreenState extends State<EquiposScreen> {
           final active = index == _tabIndex;
           return Expanded(
             child: GestureDetector(
-              onTap: () {
-                setState(() => _tabIndex = index);
-              },
+              onTap: () => setState(() => _tabIndex = index),
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: active ? primaryColor.withOpacity(0.85) : Colors.transparent,
+                  color: active ? primaryColor : Colors.transparent,
                   border: Border(
                     bottom: BorderSide(
                       color: active ? primaryColor : Colors.grey.shade300,
                       width: 2,
                     ),
-                    top: BorderSide(color: Colors.grey.shade300, width: 1),
-                    left: BorderSide(color: Colors.grey.shade300, width: 1),
-                    right: BorderSide(color: Colors.grey.shade300, width: 1),
                   ),
                 ),
                 child: Text(
                   tabs[index],
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: active ? Colors.white : const Color(0xFF4D4D4D),
+                    color: active ? Colors.white : Colors.grey.shade700,
                     fontWeight: active ? FontWeight.bold : FontWeight.w500,
-                    fontSize: 13,
+                    fontSize: 12,
                   ),
                 ),
               ),
@@ -199,27 +224,30 @@ class _EquiposScreenState extends State<EquiposScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.bold,
-        color: Color(0xFF3E3E1F),
-      ),
-    );
-  }
+  Widget _buildTareaCard(TareaEquipoVista tarea) {
+    final accion = tarea.estado == EstadoTareaSalida.completada
+        ? null
+        : tarea.pendienteValidacion
+            ? 'Revisar'
+            : 'Ver salida';
 
-  Widget _buildTareaCard(_EquipoTarea tarea) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF4F5EA),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFB8B27A), width: 1),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
@@ -227,52 +255,46 @@ class _EquiposScreenState extends State<EquiposScreen> {
               children: [
                 RichText(
                   text: TextSpan(
-                    style: const TextStyle(
-                      fontSize: 15,
-                      color: Color(0xFF303030),
-                    ),
+                    style: const TextStyle(fontSize: 15, color: Colors.black87),
                     children: [
                       const TextSpan(
                         text: 'Operador: ',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      TextSpan(
-                        text: tarea.operador,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
+                      TextSpan(text: tarea.operadorNombre),
                     ],
                   ),
                 ),
                 const SizedBox(height: 4),
                 RichText(
                   text: TextSpan(
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF303030),
-                    ),
+                    style: const TextStyle(fontSize: 14, color: Colors.black87),
                     children: [
                       const TextSpan(
                         text: 'Ubicación: ',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      TextSpan(
-                        text: tarea.ubicacion,
-                        style: const TextStyle(fontWeight: FontWeight.w500),
-                      ),
+                      TextSpan(text: tarea.ubicacionDisplay),
                     ],
                   ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  tarea.templateNombre,
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${tarea.salidaNombre} · ${tarea.progresoPorcentaje}% completado',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 10),
-          Icon(
-            tarea.tipoIcono,
-            color: primaryColor,
-            size: 28,
-          ),
-          const SizedBox(width: 10),
-          if (tarea.estado != 'Completado')
+          const SizedBox(width: 8),
+          Icon(_iconoEstado(tarea), color: primaryColor, size: 26),
+          if (accion != null) ...[
+            const SizedBox(width: 8),
             SizedBox(
               height: 38,
               child: ElevatedButton(
@@ -280,54 +302,35 @@ class _EquiposScreenState extends State<EquiposScreen> {
                   backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => DetalleTareaScreen(
-                        tarea: TareaDetalle(
-                          operador: tarea.operador,
-                          ubicacion: tarea.ubicacion,
-                          estado: tarea.estado,
-                          duracion: '2h 45m',           // placeholder por ahora
-                          progreso: tarea.estado == 'Completado' ? 100
-                              : tarea.estado == 'En progreso' ? 60
-                              : tarea.estado == 'Validación' ? 90
-                              : 10,
-                          checklist: const [
-                            'Herramientas verificadas',
-                            'Área de trabajo limpia',
-                            'Reporte de incidencias enviado',
-                          ],
-                          evidencias: const [],         // vacío hasta conectar backend
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                onPressed: () => _abrirSalida(tarea),
                 child: Text(
-                  tarea.accion,
+                  accion,
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontSize: 13,
                   ),
                 ),
               ),
-            )
-          else
-            const Icon(
-              Icons.check,
-              color: primaryColor,
-              size: 30,
             ),
+          ] else
+            Icon(Icons.check_circle, color: primaryColor, size: 28),
         ],
       ),
     );
+  }
+
+  IconData _iconoEstado(TareaEquipoVista tarea) {
+    if (tarea.estado == EstadoTareaSalida.completada) {
+      return Icons.check_circle_outline;
+    }
+    if (tarea.pendienteValidacion) return Icons.fact_check_outlined;
+    if (tarea.estado == EstadoTareaSalida.enCurso) return Icons.sync;
+    return Icons.cloud_outlined;
   }
 
   String _tabTitleForIndex(int index) {
@@ -344,20 +347,4 @@ class _EquiposScreenState extends State<EquiposScreen> {
         return 'Tareas del Equipo';
     }
   }
-}
-
-class _EquipoTarea {
-  final String operador;
-  final String ubicacion;
-  final String estado;
-  final IconData tipoIcono;
-  final String accion;
-
-  _EquipoTarea({
-    required this.operador,
-    required this.ubicacion,
-    required this.estado,
-    required this.tipoIcono,
-    required this.accion,
-  });
 }

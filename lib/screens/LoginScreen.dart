@@ -1,6 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../main.dart';
+import '../theme.dart';
 import '../utils/servicioAutenticacion.dart';
+import '../widgets/terrasacha_logo.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -21,8 +23,8 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _requiereNuevaContrasena = false;
   String? _error;
 
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
 
   @override
   void dispose() {
@@ -153,23 +155,9 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 24),
 
-              // Header
-              Row(
-                children: [
-                  Icon(Icons.park, color: primaryColor, size: 36),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Terrasacha',
-                    style: TextStyle(
-                      color: primaryColor,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
+              const TerrasachaLogo.hero(),
 
-              const SizedBox(height: 48),
+              const SizedBox(height: 40),
 
               if (_requiereNuevaContrasena) ...[
                 const Text(
@@ -235,9 +223,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextField(
                   controller: _emailCtrl,
                   keyboardType: TextInputType.emailAddress,
+                  style: terrasachaInputTextStyle,
                   decoration: InputDecoration(
                     hintText: 'ejemplo@correo.com',
-                    hintStyle: TextStyle(color: Colors.grey[400]),
+                    hintStyle: terrasachaInputTextStyle.copyWith(
+                      color: Colors.grey[400],
+                    ),
                     filled: true,
                     fillColor: Colors.white,
                     prefixIcon: Icon(Icons.email_outlined, color: primaryColor),
@@ -397,9 +388,12 @@ class _LoginScreenState extends State<LoginScreen> {
         TextField(
           controller: controller,
           obscureText: !visible,
+          style: terrasachaInputTextStyle,
           decoration: InputDecoration(
             hintText: '••••••••',
-            hintStyle: TextStyle(color: Colors.grey[400]),
+            hintStyle: terrasachaInputTextStyle.copyWith(
+              color: Colors.grey[400],
+            ),
             filled: true,
             fillColor: Colors.white,
             prefixIcon: Icon(Icons.lock_outline, color: primaryColor),
@@ -428,5 +422,6 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ],
     );
+
   }
 }

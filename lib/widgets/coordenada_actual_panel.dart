@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/coordenada_actual.dart';
 import '../utils/servicio_ubicacion_actual.dart';
+import '../theme.dart';
 
 enum EstadoUbicacion {
   inicial,
@@ -35,7 +36,7 @@ class CoordenadaActualPanel extends StatefulWidget {
     this.inicialmenteExpandido = true,
     this.titulo = 'Tu posición actual',
     this.onCoordenadaChanged,
-    this.primaryColor = const Color(0xFF4A5C24),
+    this.primaryColor = terrasachaPrimaryColor,
     this.mapHeight = 180,
   });
 
@@ -478,5 +479,6 @@ class GeolocatorPermissionHelper {
               'Activa el GPS del celular para ver tu posición actual.',
         ),
     };
+
   }
 }

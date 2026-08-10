@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../models/lista_chequeo.dart';
+import '../theme.dart';
 
 class EditorListaChequeoScreen extends StatefulWidget {
   final Color primaryColor;
@@ -143,9 +144,9 @@ class _EditorListaChequeoScreenState extends State<EditorListaChequeoScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8F6),
+      backgroundColor: terrasachaBackgroundColor,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF7F8F6),
+        backgroundColor: terrasachaBackgroundColor,
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios, color: widget.primaryColor, size: 18),
@@ -166,6 +167,8 @@ class _EditorListaChequeoScreenState extends State<EditorListaChequeoScreen> {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
           children: [
             TextFormField(
+              textCapitalization: terrasachaCapitalizacionTexto,
+              inputFormatters: terrasachaFormattersTexto(),
               controller: _nombreCtrl,
               decoration: _inputDecoration('Nombre de la lista'),
               validator: (v) {
@@ -177,6 +180,8 @@ class _EditorListaChequeoScreenState extends State<EditorListaChequeoScreen> {
             ),
             const SizedBox(height: 16),
             TextFormField(
+              textCapitalization: terrasachaCapitalizacionTexto,
+              inputFormatters: terrasachaFormattersTexto(),
               controller: _descripcionCtrl,
               maxLines: 2,
               decoration: _inputDecoration('Descripción (opcional)'),
@@ -253,11 +258,15 @@ class _EditorListaChequeoScreenState extends State<EditorListaChequeoScreen> {
                       ),
                       const SizedBox(height: 8),
                       TextFormField(
+                        textCapitalization: terrasachaCapitalizacionTexto,
+                        inputFormatters: terrasachaFormattersTexto(),
                         controller: item.tituloCtrl,
                         decoration: _inputDecoration('Título del ítem'),
                       ),
                       const SizedBox(height: 10),
                       TextFormField(
+                        textCapitalization: terrasachaCapitalizacionTexto,
+                        inputFormatters: terrasachaFormattersTexto(),
                         controller: item.descripcionCtrl,
                         maxLines: 2,
                         decoration: _inputDecoration('Descripción'),

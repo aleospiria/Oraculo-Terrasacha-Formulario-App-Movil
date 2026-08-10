@@ -1,3 +1,4 @@
+﻿import '../theme.dart';
 // lib/Screens/CreacionPlanScreen.dart
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
@@ -34,9 +35,9 @@ class CreacionPlanScreen extends StatefulWidget {
 }
 
 class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
-  final Color cardColor = const Color(0xFFEEF2E6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
+  final Color cardColor = terrasachaCardColor;
   final Color accentColor = const Color(0xFFC8A97A); // dorado pasos inactivos
 
   int _pasoActual = 1; // 1-4, luego 5 = resumen
@@ -55,6 +56,8 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
   DateTime? _fechaFinPlan;
   DateTime? _fechaSubareaEditando;
   List<LatLng> _puntosSubareaActual = [];
+  /// El usuario opta por dibujar subáreas; por defecto es opcional (apagado).
+  bool _definirSubareas = false;
 
   final List<_UsuarioPlan> _usuariosSeleccionados = [];
   ListaChequeo? _listaChequeoSeleccionada;
@@ -75,6 +78,9 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
   ];
 
   bool _usuariosApiCargados = false;
+  final Set<String> _usuariosActualizandoRol = {};
+  /// Activado por defecto: la salida exige chequeo de transporte.
+  bool _requiereChequeoVehiculo = true;
 
   String _busquedaUsuario = '';
   String? _salidaIdEnEdicion;
@@ -123,7 +129,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
           _UsuarioPlan(
             userId: usuario.id,
             nombre: usuario.nombre,
-            rol: usuario.rolDisplay,
+            rol: RolesCampo.etiquetaParaDropdown(usuario.rolDisplay),
           ),
         );
       }
@@ -153,6 +159,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     _subAreasPorDia
       ..clear()
       ..addAll(salida.subAreasPorDia);
+    _definirSubareas = salida.subAreasPorDia.isNotEmpty;
     _usuariosSeleccionados
       ..clear()
       ..addAll(
@@ -163,6 +170,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       ..addAll(
         salida.asignacionesPlantillas.map(_normalizarAsignacion),
       );
+    _requiereChequeoVehiculo = salida.requiereChequeoVehiculo;
 
     await _cargarUsuariosEquipoSiNecesario();
 
@@ -221,11 +229,9 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
         _mostrarError('Selecciona una ubicación en la topología');
         return;
       }
-      if (_poligonoPadreLatLng.length >= 3 && _subAreasPorDia.isEmpty) {
-        _mostrarError(
-          'Define al menos una subárea por día dentro del polígono padre',
-        );
-        return;
+      // Subáreas son opcionales: si hay dibujo a medias, se descarta al continuar.
+      if (_fechaSubareaEditando != null || _puntosSubareaActual.isNotEmpty) {
+        _cancelarEdicionSubarea();
       }
       final fueraDeRango = _subAreasPorDia.where(
         (s) => !_fechaEstaEnRangoPlan(s.fecha),
@@ -295,14 +301,6 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       porClave[clave] = u;
     }
     return porClave.values.toList();
-  }
-
-  List<_UsuarioPlan> get _lideresCuadrilla {
-    final lideres = _usuariosSeleccionados
-        .where((u) => RolesCampo.esLiderCuadrilla(u.rol))
-        .toList();
-    if (lideres.isNotEmpty) return lideres;
-    return List<_UsuarioPlan>.from(_usuariosSeleccionados);
   }
 
 
@@ -502,14 +500,20 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       }
     }
 
-    final fechas = _subAreasPorDia.map((s) => s.fecha).toList();
+    final dias = ServicioSalida.diasDesdeRango(
+      fechaInicio: _fechaInicioPlan,
+      fechaFin: _fechaFinPlan,
+    );
+    final requiereDia = dias.length > 1;
     final responsables = _responsablesPlantilla
         .map(_responsableParaSheet)
         .toList();
 
     AsignacionPlantillaSheetDatos? iniciales;
+    String? excluirAsignacionId;
     if (indiceEdicion != null) {
       final a = _normalizarAsignacion(_asignacionesPlantillas[indiceEdicion]);
+      excluirAsignacionId = a.id;
       iniciales = AsignacionPlantillaSheetDatos(
         templateId: a.templateId,
         templateNombre: a.templateNombre,
@@ -527,7 +531,10 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       primaryColor: primaryColor,
       plantillas: _plantillasDisponibles,
       responsables: responsables,
-      fechasSubArea: fechas,
+      diasSalida: dias,
+      asignacionesExistentes: _asignacionesPlantillas,
+      excluirAsignacionId: excluirAsignacionId,
+      requiereDia: requiereDia,
       datosIniciales: iniciales,
     );
 
@@ -540,12 +547,34 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
           : null,
     );
 
+    try {
+      ServicioSalida.validarAsignacionPlantillaPorDia(
+        dias: dias,
+        asignaciones: _asignacionesPlantillas,
+        asignacion: asignacion,
+        excluirAsignacionId: excluirAsignacionId,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _mostrarError(e.toString().replaceFirst('Bad state: ', ''));
+      return;
+    }
+
     setState(() {
+      final base = indiceEdicion != null
+          ? List<AsignacionPlantillaPlan>.from(_asignacionesPlantillas)
+          : [..._asignacionesPlantillas, asignacion];
       if (indiceEdicion != null) {
-        _asignacionesPlantillas[indiceEdicion] = asignacion;
-      } else {
-        _asignacionesPlantillas.add(asignacion);
+        base[indiceEdicion] = asignacion;
       }
+      _asignacionesPlantillas
+        ..clear()
+        ..addAll(
+          ServicioSalida.reasignarFeaturesEnMemoria(
+            asignaciones: base,
+            destino: asignacion,
+          ),
+        );
     });
   }
 
@@ -584,6 +613,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       _subAreasPorDia.clear();
       _fechaSubareaEditando = null;
       _puntosSubareaActual = [];
+      _definirSubareas = false;
     });
 
     if (padreLatLng.isEmpty && mounted) {
@@ -599,34 +629,63 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
     }
   }
 
-  Future<void> _elegirFechaSubarea() async {
+  Future<void> _elegirFechaSubarea({DateTime? fechaSugerida}) async {
     if (_fechaInicioPlan == null || _fechaFinPlan == null) {
       _mostrarError('Define primero las fechas de inicio y fin del plan');
       return;
     }
 
-    final fecha = await showDatePicker(
-      context: context,
-      initialDate: _fechaSubareaEditando ?? _fechaInicioPlan!,
-      firstDate: _fechaInicioPlan!,
-      lastDate: _fechaFinPlan!,
-      helpText: 'Día de trabajo en campo',
-    );
+    DateTime? fecha = fechaSugerida;
+    if (fecha == null) {
+      fecha = await showDatePicker(
+        context: context,
+        initialDate: _fechaSubareaEditando ?? _fechaInicioPlan!,
+        firstDate: _fechaInicioPlan!,
+        lastDate: _fechaFinPlan!,
+        helpText: 'Día de trabajo en campo',
+      );
+    }
     if (fecha == null || !mounted) return;
 
-    final yaExiste = _subAreasPorDia.any(
-      (s) =>
-          s.fecha.year == fecha.year &&
-          s.fecha.month == fecha.month &&
-          s.fecha.day == fecha.day,
-    );
-    if (yaExiste) {
-      _mostrarError('Ya existe una subárea para esa fecha');
+    final dia = _soloFecha(fecha);
+    if (!_fechaEstaEnRangoPlan(dia)) {
+      _mostrarError('La fecha debe estar dentro de la vigencia del plan');
       return;
     }
 
+    _abrirDiaSubarea(dia);
+  }
+
+  void _abrirDiaSubarea(DateTime dia) {
+    final idx = _indiceSubareaDelDia(dia);
+    final puntos = idx >= 0
+        ? parseGeoJsonPolygonRing(_subAreasPorDia[idx].subAreaGeoJson)
+        : <LatLng>[];
+
     setState(() {
-      _fechaSubareaEditando = fecha;
+      _definirSubareas = true;
+      _fechaSubareaEditando = _soloFecha(dia);
+      _puntosSubareaActual = List<LatLng>.from(puntos);
+    });
+  }
+
+  int _indiceSubareaDelDia(DateTime dia) {
+    return _subAreasPorDia.indexWhere(
+      (s) =>
+          s.fecha.year == dia.year &&
+          s.fecha.month == dia.month &&
+          s.fecha.day == dia.day,
+    );
+  }
+
+  bool get _editandoSubareaExistente {
+    if (_fechaSubareaEditando == null) return false;
+    return _indiceSubareaDelDia(_fechaSubareaEditando!) >= 0;
+  }
+
+  void _cancelarEdicionSubarea() {
+    setState(() {
+      _fechaSubareaEditando = null;
       _puntosSubareaActual = [];
     });
   }
@@ -637,7 +696,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       return;
     }
     if (_puntosSubareaActual.length < 3) {
-      _mostrarError('La subárea necesita al menos 3 puntos');
+      _mostrarError('La subárea necesita al menos 3 puntos en el mapa');
       return;
     }
     if (_poligonoPadreLatLng.length >= 3 &&
@@ -645,26 +704,77 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
           _puntosSubareaActual,
           _poligonoPadreLatLng,
         )) {
-      _mostrarError('La subárea debe estar dentro del polígono padre');
+      _mostrarError('La subárea debe estar dentro del polígono padre (azul)');
       return;
     }
 
     final geoJson = encodeGeoJsonPolygon(_puntosSubareaActual);
+    final dia = _fechaSubareaEditando!;
+    final idx = _indiceSubareaDelDia(dia);
+    final actualizando = idx >= 0;
+
     setState(() {
-      _subAreasPorDia.add(
-        SubAreaPlanDia(
-          fecha: _fechaSubareaEditando!,
-          subAreaGeoJson: geoJson,
-        ),
-      );
+      final item = SubAreaPlanDia(fecha: dia, subAreaGeoJson: geoJson);
+      if (actualizando) {
+        _subAreasPorDia[idx] = item;
+      } else {
+        _subAreasPorDia.add(item);
+      }
       _subAreasPorDia.sort((a, b) => a.fecha.compareTo(b.fecha));
       _fechaSubareaEditando = null;
       _puntosSubareaActual = [];
     });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            actualizando ? 'Subárea actualizada' : 'Subárea guardada',
+          ),
+          backgroundColor: primaryColor,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   void _eliminarSubarea(int index) {
-    setState(() => _subAreasPorDia.removeAt(index));
+    final eliminada = _subAreasPorDia[index];
+    setState(() {
+      _subAreasPorDia.removeAt(index);
+      if (_fechaSubareaEditando != null &&
+          _fechaSubareaEditando!.year == eliminada.fecha.year &&
+          _fechaSubareaEditando!.month == eliminada.fecha.month &&
+          _fechaSubareaEditando!.day == eliminada.fecha.day) {
+        _fechaSubareaEditando = null;
+        _puntosSubareaActual = [];
+      }
+    });
+  }
+
+  List<DateTime> get _diasDelPlan {
+    if (_fechaInicioPlan == null || _fechaFinPlan == null) return [];
+    final dias = <DateTime>[];
+    var d = _soloFecha(_fechaInicioPlan!);
+    final fin = _soloFecha(_fechaFinPlan!);
+    // Limitar chips visibles a 60 días para no saturar la UI.
+    var guard = 0;
+    while (!d.isAfter(fin) && guard < 60) {
+      dias.add(d);
+      d = d.add(const Duration(days: 1));
+      guard++;
+    }
+    return dias;
+  }
+
+  bool _diaTieneSubarea(DateTime dia) {
+    return _subAreasPorDia.any(
+      (s) =>
+          s.fecha.year == dia.year &&
+          s.fecha.month == dia.month &&
+          s.fecha.day == dia.day,
+    );
   }
 
   String _formatFecha(DateTime fecha) {
@@ -876,6 +986,8 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
           ),
           const SizedBox(height: 8),
           TextField(
+            textCapitalization: terrasachaCapitalizacionTexto,
+            inputFormatters: terrasachaFormattersTexto(),
             controller: _nombrePlanCtrl,
             decoration: _inputDecoration('Ingresa el nombre del plan'),
           ),
@@ -956,108 +1068,337 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
           ],
           if (puedeDibujar) ...[
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Subáreas por día',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: primaryColor,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _elegirFechaSubarea,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Agregar día'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Dibuja un polígono contenido en el área padre para cada fecha de trabajo.',
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-            if (_fechaSubareaEditando != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Día: ${_formatFecha(_fechaSubareaEditando!)}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
               ),
-              const SizedBox(height: 8),
-              MapaSubareaWidget(
-                poligonoPadre: _poligonoPadreLatLng,
-                puntosSubarea: _puntosSubareaActual,
-                primaryColor: primaryColor,
-                onPuntosChanged: (pts) =>
-                    setState(() => _puntosSubareaActual = pts),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: _guardarSubareaDia,
-                  child: const Text('Guardar subárea del día'),
-                ),
-              ),
-            ],
-            if (_subAreasPorDia.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              ..._subAreasPorDia.asMap().entries.map((entry) {
-                final i = entry.key;
-                final sub = entry.value;
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey[200]!),
-                  ),
-                  child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Icon(Icons.event, color: primaryColor, size: 20),
-                      const SizedBox(width: 10),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Row(
                           children: [
                             Text(
-                              _formatFecha(sub.fecha),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
+                              'Subáreas por día',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: primaryColor,
                               ),
                             ),
-                            Text(
-                              'Subárea definida',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[600],
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: terrasachaLightColor.withValues(alpha: 0.45),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Opcional',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: primaryColor,
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Icon(Icons.check_circle, color: primaryColor, size: 20),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: Colors.redAccent),
-                        onPressed: () => _eliminarSubarea(i),
-                        tooltip: 'Eliminar subárea',
+                      Switch(
+                        value: _definirSubareas,
+                        activeThumbColor: primaryColor,
+                        onChanged: (v) {
+                          setState(() {
+                            _definirSubareas = v;
+                            if (!v) {
+                              _fechaSubareaEditando = null;
+                              _puntosSubareaActual = [];
+                            }
+                          });
+                        },
                       ),
                     ],
                   ),
-                );
-              }),
-            ],
+                  Text(
+                    _definirSubareas
+                        ? 'Elige un día y toca el mapa para dibujar el polígono dentro del área azul.'
+                        : 'Puedes continuar sin delimitar subáreas. Activa el interruptor si quieres dibujar zonas por día.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  if (!_definirSubareas && _subAreasPorDia.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      '${_subAreasPorDia.length} subárea(s) guardada(s). Activa el interruptor para editarlas.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: primaryColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                  if (_definirSubareas) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      '1. Selecciona el día',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 42,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _diasDelPlan.length + 1,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          if (index == _diasDelPlan.length) {
+                            return ActionChip(
+                              avatar: Icon(Icons.calendar_month,
+                                  size: 16, color: primaryColor),
+                              label: const Text('Otra fecha'),
+                              onPressed: () => _elegirFechaSubarea(),
+                            );
+                          }
+                          final dia = _diasDelPlan[index];
+                          final tiene = _diaTieneSubarea(dia);
+                          final editando = _fechaSubareaEditando != null &&
+                              _fechaSubareaEditando!.year == dia.year &&
+                              _fechaSubareaEditando!.month == dia.month &&
+                              _fechaSubareaEditando!.day == dia.day;
+
+                          final bg = editando
+                              ? primaryColor.withValues(alpha: 0.18)
+                              : tiene
+                                  ? terrasachaCardColor
+                                  : Colors.white;
+                          final border = editando || tiene
+                              ? primaryColor
+                              : Colors.grey.shade300;
+                          final textColor = Colors.black87;
+
+                          return Material(
+                            color: bg,
+                            borderRadius: BorderRadius.circular(20),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(20),
+                              onTap: () => _abrirDiaSubarea(dia),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(color: border, width: 1.2),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _formatFecha(dia),
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: textColor,
+                                      ),
+                                    ),
+                                    if (tiene) ...[
+                                      const SizedBox(width: 6),
+                                      Icon(
+                                        Icons.check_circle,
+                                        size: 16,
+                                        color: primaryColor,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    if (_fechaSubareaEditando != null) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _editandoSubareaExistente
+                                  ? '2. Edita la subárea · ${_formatFecha(_fechaSubareaEditando!)}'
+                                  : '2. Dibuja la subárea · ${_formatFecha(_fechaSubareaEditando!)}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _cancelarEdicionSubarea,
+                            child: const Text('Cancelar'),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      MapaSubareaWidget(
+                        key: ValueKey(
+                          'mapa-subarea-${_fechaSubareaEditando!.millisecondsSinceEpoch}',
+                        ),
+                        poligonoPadre: _poligonoPadreLatLng,
+                        puntosSubarea: _puntosSubareaActual,
+                        primaryColor: primaryColor,
+                        onPuntosChanged: (pts) =>
+                            setState(() => _puntosSubareaActual = pts),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _cancelarEdicionSubarea,
+                              child: const Text('Cancelar día'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              onPressed: _puntosSubareaActual.length >= 3
+                                  ? _guardarSubareaDia
+                                  : null,
+                              icon: Icon(
+                                _editandoSubareaExistente
+                                    ? Icons.update
+                                    : Icons.save_outlined,
+                                size: 18,
+                              ),
+                              label: Text(
+                                _puntosSubareaActual.length < 3
+                                    ? 'Faltan ${_puntosSubareaActual.length}/3 puntos'
+                                    : _editandoSubareaExistente
+                                        ? 'Actualizar subárea'
+                                        : 'Guardar subárea',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: terrasachaCardColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Toca un día para dibujar su subárea, o uno con ✓ para verla y editarla.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                        ),
+                      ),
+                    ],
+                    if (_subAreasPorDia.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Text(
+                        'Subáreas guardadas (${_subAreasPorDia.length})',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ..._subAreasPorDia.asMap().entries.map((entry) {
+                        final i = entry.key;
+                        final sub = entry.value;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Material(
+                            color: terrasachaCardColor,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => _abrirDiaSubarea(sub.fecha),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: primaryColor.withValues(alpha: 0.2),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.event,
+                                        color: primaryColor, size: 20),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _formatFecha(sub.fecha),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Toca para ver / editar',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.edit_outlined,
+                                          color: primaryColor),
+                                      onPressed: () =>
+                                          _abrirDiaSubarea(sub.fecha),
+                                      tooltip: 'Editar subárea',
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline,
+                                          color: Colors.redAccent),
+                                      onPressed: () => _eliminarSubarea(i),
+                                      tooltip: 'Eliminar subárea',
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  ],
+                ],
+              ),
+            ),
           ] else if (_topologiaId != null) ...[
             const SizedBox(height: 16),
             Container(
@@ -1073,7 +1414,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Sin polígono padre en esta topología. Puedes continuar; las subáreas por día requieren un polígono definido en ModelAI.',
+                      'Sin polígono padre en esta topología. Puedes continuar sin subáreas.',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.orange.shade900,
@@ -1102,6 +1443,8 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: TextField(
+            textCapitalization: terrasachaCapitalizacionTexto,
+            inputFormatters: terrasachaFormattersTexto(),
             onChanged: (v) => setState(() => _busquedaUsuario = v),
             decoration: _inputDecoration('Buscar usuarios',
                 prefixIcon: Icons.search),
@@ -1201,7 +1544,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      usuario.rol,
+                      RolesCampo.etiquetaParaDropdown(usuario.rol),
                       style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                     ),
                   ],
@@ -1216,29 +1559,145 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
 
   Widget _buildDropdownPequeno(_UsuarioPlan usuario) {
     final rolDropdown = RolesCampo.etiquetaParaDropdown(usuario.rol);
+    final clave = usuario.userId.isNotEmpty ? usuario.userId : usuario.nombre;
+    final actualizando = _usuariosActualizandoRol.contains(clave);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         border: Border.all(color: Colors.grey[300]!),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: rolDropdown,
-          isDense: true,
-          icon: const Icon(Icons.keyboard_arrow_down, size: 16),
-          items: ['Operador', 'Jefe de cuadrilla', 'Jefe', 'Supervisor']
-              .map((r) => DropdownMenuItem(
-            value: r,
-            child: Text(r, style: const TextStyle(fontSize: 12)),
-          ))
-              .toList(),
-          onChanged: (v) {
-            if (v != null) setState(() => usuario.rol = v);
-          },
+      child: actualizando
+          ? const SizedBox(
+              width: 24,
+              height: 24,
+              child: Padding(
+                padding: EdgeInsets.all(4),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: rolDropdown,
+                isDense: true,
+                icon: const Icon(Icons.keyboard_arrow_down, size: 16),
+                items: RolesCampo.rolesEquipoPlan
+                    .map((r) => DropdownMenuItem(
+                          value: r,
+                          child: Text(r, style: const TextStyle(fontSize: 12)),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) {
+                    _manejarCambioRolUsuario(usuario, v);
+                  }
+                },
+              ),
+            ),
+    );
+  }
+
+  Future<void> _manejarCambioRolUsuario(
+    _UsuarioPlan usuario,
+    String nuevoRolUi,
+  ) async {
+    final rolNormalizado = RolesCampo.etiquetaParaDropdown(nuevoRolUi);
+    final rolActual = RolesCampo.etiquetaParaDropdown(usuario.rol);
+    if (rolNormalizado == rolActual) return;
+
+    // Usuarios mock / sin id: solo afecta este plan.
+    if (usuario.userId.isEmpty) {
+      setState(() => usuario.rol = rolNormalizado);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Rol actualizado solo en este plan (usuario sin ID de Cognito).',
+          ),
+          behavior: SnackBarBehavior.floating,
         ),
+      );
+      return;
+    }
+
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cambiar rol en Cognito'),
+        content: Text(
+          'Vas a cambiar el rol de ${usuario.nombre} de "$rolActual" a '
+          '"$rolNormalizado".\n\n'
+          'Esto actualiza su cuenta en Cognito (no solo este plan). '
+          'El usuario deberá volver a iniciar sesión para ver permisos nuevos.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirmar'),
+          ),
+        ],
       ),
     );
+
+    if (confirmar != true || !mounted) return;
+
+    final clave = usuario.userId;
+    setState(() => _usuariosActualizandoRol.add(clave));
+
+    final resultado = await ServicioUsuariosCampo.actualizarRol(
+      userId: usuario.userId,
+      rolCognito: RolesCampo.cognitoDesdeEtiqueta(rolNormalizado),
+    );
+
+    if (!mounted) return;
+    setState(() => _usuariosActualizandoRol.remove(clave));
+
+    if (resultado['exito'] == true) {
+      setState(() {
+        usuario.rol = rolNormalizado;
+        // Mantener sincronizado si hay otra copia en seleccionados.
+        for (final u in _usuariosSeleccionados) {
+          if (u.userId == usuario.userId) {
+            u.rol = rolNormalizado;
+          }
+        }
+        for (final u in _usuariosDisponibles) {
+          if (u.userId == usuario.userId) {
+            u.rol = rolNormalizado;
+          }
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            resultado['mensaje']?.toString() ??
+                'Rol de ${usuario.nombre} actualizado en Cognito',
+          ),
+          backgroundColor: primaryColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            resultado['error']?.toString() ??
+                'No se pudo actualizar el rol en Cognito',
+          ),
+          backgroundColor: Colors.red[700],
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   // ── Paso 3: Lista de chequeo ──────────────────────────────────────────────
@@ -1564,6 +2023,36 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: SwitchListTile(
+                  value: _requiereChequeoVehiculo,
+                  activeThumbColor: primaryColor,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                  onChanged: (v) =>
+                      setState(() => _requiereChequeoVehiculo = v),
+                  title: const Text(
+                    '¿Requiere checklist de vehículo?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  subtitle: Text(
+                    _requiereChequeoVehiculo
+                        ? 'El jefe de cuadrilla deberá completar el chequeo de transporte.'
+                        : 'No se pedirá ni se mostrará el chequeo de vehículo en esta salida.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1876,14 +2365,14 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                   label: 'Ubicación (topología):',
                   valor: _ubicacionRuta ?? 'Sin ubicación',
                 ),
-                if (_subAreasPorDia.isNotEmpty) ...[
-                  Divider(height: 1, color: Colors.grey[100]),
-                  _buildFilaResumen(
-                    icono: Icons.map_outlined,
-                    label: 'Subáreas por día:',
-                    valor: '${_subAreasPorDia.length} día(s)',
-                  ),
-                ],
+                Divider(height: 1, color: Colors.grey[100]),
+                _buildFilaResumen(
+                  icono: Icons.map_outlined,
+                  label: 'Subáreas por día:',
+                  valor: _subAreasPorDia.isEmpty
+                      ? 'Ninguna (opcional)'
+                      : '${_subAreasPorDia.length} día(s)',
+                ),
                 if (_asignacionesPlantillas.isNotEmpty) ...[
                   Divider(height: 1, color: Colors.grey[100]),
                   _buildFilaResumen(
@@ -1892,6 +2381,12 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
                     valor: '${_asignacionesPlantillas.length} tarea(s)',
                   ),
                 ],
+                Divider(height: 1, color: Colors.grey[100]),
+                _buildFilaResumen(
+                  icono: Icons.directions_car_outlined,
+                  label: 'Checklist de vehículo:',
+                  valor: _requiereChequeoVehiculo ? 'Sí' : 'No',
+                ),
               ],
             ),
           ),
@@ -2164,6 +2659,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       equipo: _usuariosSeleccionados
           .map(
             (u) => MiembroEquipoPlan(
+              userId: u.userId.isNotEmpty ? u.userId : null,
               nombre: RolesCampo.normalizarNombre(u.nombre),
               rol: RolesCampo.etiquetaParaDropdown(u.rol),
             ),
@@ -2177,6 +2673,7 @@ class _CreacionPlanScreenState extends State<CreacionPlanScreen> {
       motivoClonacion: widget.salidaInicial?.motivoClonacion,
       creadoEn: widget.salidaInicial?.creadoEn ?? ahora,
       actualizadoEn: ahora,
+      requiereChequeoVehiculo: _requiereChequeoVehiculo,
     );
 
     try {
@@ -2213,6 +2710,7 @@ _UsuarioPlan _usuarioPlanDesdeMiembro(MiembroEquipoPlan miembro) {
       ? 'lider_cuadrilla'
       : 'operador';
   return _UsuarioPlan(
+    userId: miembro.userId ?? '',
     nombre: RolesCampo.normalizarNombre(miembro.nombre, rolCognito: cognito),
     rol: RolesCampo.etiquetaParaDropdown(miembro.rol),
   );

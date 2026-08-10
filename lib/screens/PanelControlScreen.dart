@@ -1,9 +1,10 @@
+﻿import '../theme.dart';
 // lib/Screens/PanelControlScreen.dart
 import 'dart:async';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:capturador_datos_offline/Screens/ProyectosMenuScreen.dart';
+import 'package:capturador_datos_offline/screens/ProyectosMenuScreen.dart';
 import 'package:capturador_datos_offline/screens/CreacionPlanScreen.dart';
 import 'package:capturador_datos_offline/screens/DetalleSalidaScreen.dart';
 import 'package:capturador_datos_offline/main.dart';
@@ -11,25 +12,31 @@ import 'package:capturador_datos_offline/main.dart';
 import '../models/Project.dart';
 import '../models/plan_campo_borrador.dart';
 import '../models/usuario_campo.dart';
-import '../utils/roles_campo.dart';
 import '../utils/servicio_salida.dart';
 import '../utils/servicioAutenticacion.dart';
+import '../widgets/terrasacha_logo.dart';
 import 'AjustesRetencionScreen.dart';
+import 'ChecklistSalidaScreen.dart';
 import 'GestionListasChequeoScreen.dart';
+import 'GestionPlantillasScreen.dart';
 import 'GestionUsuariosScreen.dart';
+import 'MapaSalidasScreen.dart';
 import 'TareasScreen.dart';
 
 class PanelControlScreen extends StatefulWidget {
-  const PanelControlScreen({super.key});
+  const PanelControlScreen({super.key, this.initialTabIndex = 0});
+
+  /// Pestaña inicial de la barra inferior (0=Inicio, 1=Proyectos, …).
+  final int initialTabIndex;
 
   @override
   State<PanelControlScreen> createState() => _PanelControlScreenState();
 }
 
 class _PanelControlScreenState extends State<PanelControlScreen> {
-  final Color primaryColor = const Color(0xFF4A5C24);
-  final Color backgroundColor = const Color(0xFFF7F8F6);
-  final Color cardColor = const Color(0xFFEEF2E6);
+  final Color primaryColor = terrasachaPrimaryColor;
+  final Color backgroundColor = terrasachaBackgroundColor;
+  final Color cardColor = terrasachaCardColor;
 
   int _bottomIndex = 0;
   bool _sincronizando = true;
@@ -37,13 +44,28 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
   int _tareasEnCurso = 0;
   String _ultimaSincronizacion = '--:--';
   List<SalidaCampo> _planesRecientes = [];
+  List<ChecklistSalidaVista> _checklistsOperador = [];
   StreamSubscription? _syncSubscription;
 
   @override
   void initState() {
     super.initState();
+    _bottomIndex = _normalizarTabInicial(widget.initialTabIndex);
     _esperarSincronizacion();
     _cargarResumen();
+  }
+
+  void _irATab(int index) {
+    setState(() => _bottomIndex = index);
+  }
+
+  int _normalizarTabInicial(int index) {
+    if (hasRole('lider_proyecto')) {
+      if (index == 3) return 2;
+      if (index == 2 || index >= 4) return 0;
+      return index.clamp(0, 2);
+    }
+    return index.clamp(0, 3);
   }
 
   Future<void> _cargarResumen() async {
@@ -86,6 +108,8 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
         final usuario = await servicioAutenticacion.getUsuarioActual();
         if (usuario != null) {
           final tareas = await ServicioSalida.listarTareasParaUsuario(usuario);
+          final checklists =
+              await ServicioSalida.listarChecklistsParaUsuario(usuario);
           final activas = tareas
               .where(
                 (t) =>
@@ -98,6 +122,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
           setState(() {
             _planesRecientes = [];
             _tareasEnCurso = activas;
+            _checklistsOperador = checklists;
           });
         }
         return;
@@ -118,10 +143,31 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
       setState(() {
         _planesRecientes = planes.take(3).toList();
         _tareasEnCurso = enCurso;
+        _checklistsOperador = [];
       });
     } catch (e) {
       debugPrint('❌ Error cargando planes: $e');
     }
+  }
+
+  Future<void> _abrirChecklistOperador(ChecklistSalidaVista vista) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ChecklistSalidaScreen(
+          salidaId: vista.salidaId,
+          checklist: vista.checklist,
+          personaId: vista.personaId,
+          personaNombre: vista.personaNombre,
+          personaRol: vista.personaRol,
+          fecha: vista.fecha,
+          puedeEditarItems: false,
+          puedeEditarObservacion: true,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _cargarResumen();
   }
 
   @override
@@ -233,38 +279,69 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
       );
     }
 
+    if (hasRole('operador')) {
+      return _buildScaffoldOperador();
+    }
+
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
+      body: IndexedStack(
+        index: _bottomIndex,
+        children: _pestanasLider,
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  List<Widget> get _pestanasOperador => [
+        Scaffold(
+          backgroundColor: backgroundColor,
+          appBar: _buildAppBarInicio(),
+          body: _buildCuerpoInicio(),
+        ),
+        const TareasScreen(embedded: true),
+        const MapaSalidasScreen(embedded: true),
+      ];
+
+  List<Widget> get _pestanasLider {
+    if (hasRole('lider_proyecto')) {
+      return [
+        _buildInicioTab(),
+        const ProyectosMenuScreen(embedded: true),
+        const MapaSalidasScreen(embedded: true),
+      ];
+    }
+    return [
+      _buildInicioTab(),
+      const ProyectosMenuScreen(embedded: true),
+      const TareasScreen(embedded: true),
+      const MapaSalidasScreen(embedded: true),
+    ];
+  }
+
+  Widget _buildScaffoldOperador() {
+    // Misma TareasScreen (fechas + registro) que el líder de cuadrilla,
+    // embebida en tabs para que el operador no pierda los ajustes al navegar.
+    final tabIndex = _bottomIndex.clamp(0, _pestanasOperador.length - 1);
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      body: IndexedStack(
+        index: tabIndex,
+        children: _pestanasOperador,
+      ),
+      bottomNavigationBar: _buildBottomNavigationBar(),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBarInicio() {
+    return AppBar(
         backgroundColor: backgroundColor,
         elevation: 0,
-        leading: GestureDetector(
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.only(left: 16),
-            child: Row(
-              children: [
-                Icon(Icons.arrow_back_ios, color: primaryColor, size: 16),
-                Text(
-                  'Terrasacha',
-                  style: TextStyle(
-                    color: primaryColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        leadingWidth: 120,
-        title: Text(
-          hasRole('operador') ? 'Inicio' : 'Panel de Control',
-          style: const TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
+        automaticallyImplyLeading: false,
+        titleSpacing: 16,
+        title: const Align(
+          alignment: Alignment.centerLeft,
+          child: TerrasachaLogo.appBar(),
         ),
         actions: [
           IconButton(
@@ -299,8 +376,19 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
             },
           ),
         ],
-      ),
-      body: SingleChildScrollView(
+    );
+  }
+
+  Widget _buildInicioTab() {
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: _buildAppBarInicio(),
+      body: _buildCuerpoInicio(),
+    );
+  }
+
+  Widget _buildCuerpoInicio() {
+    return SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,12 +408,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const TareasScreen(),
-                        ),
-                      ),
+                      onTap: () => setState(() => _bottomIndex = 1),
                       child: _buildResumenCard(
                         icono: Icons.assignment_turned_in_outlined,
                         titulo: 'Mis tareas',
@@ -351,11 +434,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                   // Proyectos activos
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ProyectosMenuScreen()),
-                      ),
+                      onTap: () => _irATab(1),
                       child: _buildResumenCard(
                         icono: Icons.folder_outlined,
                         titulo: 'Proyectos activos',
@@ -451,10 +530,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
               ),
               const SizedBox(height: 14),
               GestureDetector(
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const TareasScreen()),
-                ),
+                onTap: () => setState(() => _bottomIndex = 1),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
@@ -481,7 +557,7 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                             ),
                             SizedBox(height: 4),
                             Text(
-                              'Registros y plantillas asignadas',
+                              'Por fecha · registro numérico u observación',
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 13,
@@ -495,60 +571,105 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
                   ),
                 ),
               ),
-              if (RolesCampo.puedeReportarIncidencias(currentUserRole)) ...[
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () => Navigator.pushNamed(context, '/incidencias'),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.red.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.warning_amber_rounded,
-                            color: Colors.red.shade400, size: 32),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Reportar incidencia',
-                                style: TextStyle(
-                                  color: Colors.red.shade700,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Accidentes y eventos en campo',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.chevron_right, color: Colors.red.shade300),
-                      ],
-                    ),
-                  ),
+              const SizedBox(height: 20),
+              Text(
+                'Mi checklist',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[800],
                 ),
-              ],
+              ),
+              const SizedBox(height: 10),
+              if (_checklistsOperador.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Text(
+                    'Sin checklists pendientes por revisar',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  ),
+                )
+              else
+                ..._checklistsOperador.map(_buildChecklistOperadorCard),
             ],
             const SizedBox(height: 80),
           ],
         ),
-      ),
+      );
+  }
 
-      // ── Navbar inferior ───────────────────────────────────────────────
-      bottomNavigationBar: BottomNavigationBar(
+  Widget _buildChecklistOperadorCard(ChecklistSalidaVista vista) {
+    final colorEstado = vista.completado
+        ? primaryColor
+        : (vista.itemsCompletados > 0 ? const Color(0xFFDD6B20) : Colors.grey);
+    final estadoTexto = vista.completado
+        ? 'Completado por el líder'
+        : (vista.itemsCompletados > 0 ? 'En progreso' : 'Pendiente');
+
+    return GestureDetector(
+      onTap: () => _abrirChecklistOperador(vista),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              vista.completado ? Icons.check_circle : Icons.checklist_rtl_outlined,
+              color: colorEstado,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    vista.salidaNombre,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$estadoTexto · ${vista.itemsCompletados} de ${vista.itemsTotal} ítems',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Fecha: ${_formatFecha(vista.fecha)}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Colors.grey[400]),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatFecha(DateTime fecha) {
+    final d = fecha.day.toString().padLeft(2, '0');
+    final m = fecha.month.toString().padLeft(2, '0');
+    return '$d/$m/${fecha.year}';
+  }
+
+  Widget _buildBottomNavigationBar() {
+    return BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _bottomIndex,
         selectedItemColor: primaryColor,
@@ -558,53 +679,39 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
         backgroundColor: Colors.white,
         elevation: 8,
         onTap: (index) {
-          setState(() => _bottomIndex = index);
           if (hasRole('operador')) {
-            if (index == 1) {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const TareasScreen()));
-            } else if (index == 2) {
+            // Reportes sigue siendo ruta aparte; el resto son tabs embebidos
+            // (Inicio / Tareas con fechas / Mapas).
+            if (index == 3) {
               Navigator.pushNamed(context, '/incidencias');
+              return;
             }
-          } else {
-            if (index == 1) {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const ProyectosMenuScreen()));
-            } else if (index == 2) {
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const TareasScreen()));
-            } else if (index != 0) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Sección ${_navLabel(index)} próximamente'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
+            setState(() => _bottomIndex = index);
+            return;
           }
+
+          _irATab(index);
         },
         items: _navItems,
-      ),
-    );
+      );
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-
-  String _navLabel(int index) {
-    if (hasRole('operador')) {
-      const labels = ['Inicio', 'Tareas', 'Reportes'];
-      return labels[index];
-    }
-    const labels = ['Inicio', 'Proyectos', 'Tareas', 'Mapas', 'Más'];
-    return labels[index];
-  }
 
   List<BottomNavigationBarItem> get _navItems {
     if (hasRole('operador')) {
       return const [
         BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Inicio'),
         BottomNavigationBarItem(icon: Icon(Icons.assignment_outlined), activeIcon: Icon(Icons.assignment), label: 'Tareas'),
+        BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Mapas'),
         BottomNavigationBarItem(icon: Icon(Icons.warning_amber_outlined), activeIcon: Icon(Icons.warning_amber), label: 'Reportes'),
+      ];
+    }
+    if (hasRole('lider_proyecto')) {
+      return const [
+        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Inicio'),
+        BottomNavigationBarItem(icon: Icon(Icons.folder_outlined), activeIcon: Icon(Icons.folder), label: 'Proyectos'),
+        BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Mapas'),
       ];
     }
     return const [
@@ -612,7 +719,6 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
       BottomNavigationBarItem(icon: Icon(Icons.folder_outlined), activeIcon: Icon(Icons.folder), label: 'Proyectos'),
       BottomNavigationBarItem(icon: Icon(Icons.assignment_outlined), activeIcon: Icon(Icons.assignment), label: 'Tareas'),
       BottomNavigationBarItem(icon: Icon(Icons.map_outlined), activeIcon: Icon(Icons.map), label: 'Mapas'),
-      BottomNavigationBarItem(icon: Icon(Icons.more_horiz), label: 'Más'),
     ];
   }
 
@@ -673,9 +779,10 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
       ));
     }
 
+    final filaSecundaria = <Widget>[];
+
     if (hasAnyRole(['lider_proyecto', 'lider_cuadrilla'])) {
-      if (acciones.isNotEmpty) acciones.add(const SizedBox(width: 10));
-      acciones.add(Expanded(
+      filaSecundaria.add(Expanded(
         child: _buildAccionCard(
           icono: Icons.checklist_outlined,
           label: 'Configurar\nchecklist',
@@ -689,9 +796,36 @@ class _PanelControlScreenState extends State<PanelControlScreen> {
       ));
     }
 
-    return acciones.isEmpty
-        ? const SizedBox.shrink()
-        : Row(children: acciones);
+    if (hasAnyRole(['lider_proyecto', 'lider_cuadrilla'])) {
+      if (filaSecundaria.isNotEmpty) {
+        filaSecundaria.add(const SizedBox(width: 10));
+      }
+      filaSecundaria.add(Expanded(
+        child: _buildAccionCard(
+          icono: Icons.library_books_outlined,
+          label: 'Gestionar\nplantillas',
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const GestionPlantillasScreen(),
+            ),
+          ),
+        ),
+      ));
+    }
+
+    if (acciones.isEmpty && filaSecundaria.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      children: [
+        if (acciones.isNotEmpty) Row(children: acciones),
+        if (acciones.isNotEmpty && filaSecundaria.isNotEmpty)
+          const SizedBox(height: 10),
+        if (filaSecundaria.isNotEmpty) Row(children: filaSecundaria),
+      ],
+    );
   }
 
   Widget _buildResumenCard({
